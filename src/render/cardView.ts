@@ -1,3 +1,4 @@
+import { splitBidi } from '../core/bidi';
 import { isMostlyArabic } from '../core/columns';
 import { fitFontSize } from '../core/fit';
 import type { Card, Line } from '../core/types';
@@ -15,14 +16,40 @@ export interface RenderOptions {
   measureOverflow?: (inner: HTMLElement) => boolean;
 }
 
-const HARAKAT = /[\u064B-\u065F\u0670]/g;
+const HARAKAT = /[ً-ٰٟ]/g;
 const HAS_ARABIC = /\p{Script=Arabic}/u;
+const HAS_LATIN_OR_DIGIT = /[A-Za-zÀ-ɏ0-9]/;
 const ARABIC_FONT = "'Amiri', 'Noto Naskh Arabic', 'Traditional Arabic', serif";
 const LATIN_FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+
+/**
+ * Kata tidak pernah dipecah di tengah: kata yang terlalu panjang dibiarkan meluap
+ * sehingga pengukur luapan mengecilkan huruf (bukan memotong kata menjadi "sekola" + "h").
+ */
+export const LINE_WRAP_CSS = 'max-width:100%;overflow-wrap:normal;word-break:normal;';
 
 function dirFor(text: string): 'rtl' | 'ltr' | 'auto' {
   if (!HAS_ARABIC.test(text)) return 'ltr';
   return isMostlyArabic(text) ? 'rtl' : 'auto';
+}
+
+function fillText(el: HTMLElement, text: string): void {
+  if (!(HAS_ARABIC.test(text) && HAS_LATIN_OR_DIGIT.test(text))) {
+    el.textContent = text;
+    return;
+  }
+  // Teks campuran: potongan Latin/angka dibungkus <bdi dir="ltr"> agar tanda kurung
+  // di batas Arab/Latin tidak terbalik.
+  for (const seg of splitBidi(text)) {
+    if (seg.ltr) {
+      const bdi = document.createElement('bdi');
+      bdi.setAttribute('dir', 'ltr');
+      bdi.textContent = seg.text;
+      el.appendChild(bdi);
+    } else {
+      el.appendChild(document.createTextNode(seg.text));
+    }
+  }
 }
 
 function buildLine(line: Line, harakat: boolean): HTMLElement {
@@ -31,12 +58,12 @@ function buildLine(line: Line, harakat: boolean): HTMLElement {
   el.className = `fc-line fc-${line.role}`;
   el.setAttribute('lang', line.lang);
   el.setAttribute('dir', dirFor(line.text));
-  el.textContent = harakat ? line.text : line.text.replace(HARAKAT, '');
+  fillText(el, harakat ? line.text : line.text.replace(HARAKAT, ''));
   el.style.cssText =
     `font-family:${arabic ? ARABIC_FONT : LATIN_FONT};` +
     `line-height:${arabic ? 1.9 : 1.25};` +
     `font-weight:${line.role === 'main' && !arabic ? 700 : 400};` +
-    'max-width:100%;overflow-wrap:anywhere;';
+    LINE_WRAP_CSS;
   return el;
 }
 
@@ -132,9 +159,14 @@ export function renderCardSide(
         el.style.fontSize = (el.classList.contains('fc-main') ? px : Math.max(11, Math.round(px * 0.5))) + 'px';
       });
     };
+    // Luapan: tinggi ATAU lebar. Karena kata tidak dipecah, satu kata yang kepanjangan
+    // membuat barisnya lebih lebar dari kotaknya; itu harus terdeteksi per baris.
     const measureOverflow =
       opts.measureOverflow ??
-      ((el: HTMLElement): boolean => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1);
+      ((el: HTMLElement): boolean =>
+        el.scrollHeight > el.clientHeight + 1 ||
+        el.scrollWidth > el.clientWidth + 1 ||
+        lineEls.some((l) => l.scrollWidth > l.clientWidth + 1));
 
     // Ukur di dalam dokumen (di luar layar) supaya ukuran nyata bisa dibaca.
     const host = document.createElement('div');
