@@ -1,48 +1,50 @@
 # HANDOFF: aplikasi flashcard siap print (bahasa Arab)
 
-Terakhir diperbarui: 2026-10-18 23:05 WIB
+Terakhir diperbarui: 2026-10-18 23:20 WIB (branch `build/app`)
 
 ## Proyek
-Aplikasi web (GitHub Pages) dan APK Android untuk membuat flashcard siap cetak A4 dari tabel yang ditempel. Pemilik adalah guru bahasa Arab. Semua keputusan ada di `docs/superpowers/specs/2026-10-18-flashcard-design.md`. Rencana kerja ada di `docs/superpowers/plans/2026-10-18-flashcard-app.md`. Baca keduanya dulu.
+Aplikasi web (GitHub Pages) dan APK Android untuk membuat flashcard siap cetak A4 dari tabel yang ditempel. Pemilik adalah guru bahasa Arab. Keputusan: `docs/superpowers/specs/2026-10-18-flashcard-design.md`. Rencana 12 tugas: `docs/superpowers/plans/2026-10-18-flashcard-app.md`. Baca keduanya dulu.
 
 ## Status
-- Dokumen rancangan: selesai, diperiksa, **disetujui pemilik** (2026-10-18).
-- Rencana implementasi (12 tugas): selesai ditulis. Pemilik memilih cara eksekusi **native** (satu agen mengerjakan semua tugas, satu pemeriksa independen di akhir).
-- Kode: Task 1 baru separuh, di branch `build/app` (bukan `main`). Sudah ada `package.json`, `tsconfig.json`, `vite.config.ts`, `.gitignore`, dan tes `tests/smoke.test.ts` (belum dijalankan hijau). Belum ada `src/ui/main.ts`, `src/core/types.ts`, `index.html`, `pages.yml`.
-- **HAMBATAN (2026-10-18 23:10 WIB):** di sesi ini `npm install` gagal. Proxy keluar menjawab 403 (penolakan kebijakan) untuk `registry.npmjs.org`, dan DNS langsung tidak ada. Tidak ada paket npm yang bisa dipasang, jadi Vite, TypeScript, dan Vitest belum terpasang dan tes belum pernah dijalankan. Jangan mencari jalan memutar; lapor ke pemilik. Cek ulang di sesi atau akun lain dengan `npm install`.
+- Rancangan: disetujui pemilik. Rencana: ditulis. Cara eksekusi: **native** (`superpowers:executing-plans`, satu agen mengerjakan semua tugas, satu pemeriksa independen di akhir).
+- **Task 1 selesai** (kerangka Vite + TS + Vitest, `mount()`, `types.ts`, `index.html`, `ci.yml`, `pages.yml`). Bukti: CI pertama merah (tes ada, kode belum), CI kedua hijau (install, test, build semua sukses).
+- Task 2 sampai 12: belum dikerjakan. Mulai dari Task 2.
+- Pekerjaan ada di branch `build/app`. `main` hanya berisi dokumen. Jangan digabung ke `main` tanpa persetujuan pemilik.
+
+## Cara menjalankan tes (PENTING)
+Di sandbox Claude, `npm install` ditolak proxy (403 untuk `registry.npmjs.org`, keputusan pemilik: pakai GitHub Actions). Jangan mencari jalan memutar. Alurnya:
+1. Tulis tes dulu, commit dan push ke `build/app` (CI harus MERAH; itu bukti RED).
+2. Tulis kode, commit dan push (CI harus HIJAU).
+3. Baca hasil: `gh run list -R sherlocomp-cyber/Flashcard --branch build/app --limit 1`, lalu `gh run watch <id> -R sherlocomp-cyber/Flashcard --exit-status`, lalu `gh run view <id> -R sherlocomp-cyber/Flashcard --json conclusion,jobs`.
+4. Log mentah tidak bisa diunduh (`gh run view --log-failed` ditolak). Untuk melihat pesan kegagalan tes, usulan (belum diuji): ubah langkah tes di `ci.yml` menjadi `npm test -- --reporter=default --reporter=github-actions`, lalu baca anotasi lewat `gh api repos/sherlocomp-cyber/Flashcard/check-runs/<job-id>/annotations`.
+Hemat kuota: gabungkan beberapa berkas dan satu tugas dalam satu commit bila tes tugas itu sudah ditulis lengkap.
 
 ## Keputusan yang sudah diambil
-Lihat bagian 2 sampai 12 di dokumen rancangan. Ringkasnya: satu aplikasi web (PWA) tanpa server, dibungkus jadi APK lewat GitHub Actions, kartu hemat tinta dengan hiasan di tepi, minimal delapan tema, masukan lewat tempel tabel, gambar opsional lewat unggah massal bernama sesuai kata.
-Pilihan teknis rencana: Vite + TypeScript, Vitest, html-to-image + jsPDF (kartu dirender browser agar Arab benar), Capacitor untuk APK.
+Lihat bagian 2 sampai 12 dokumen rancangan. Pilihan teknis rencana: Vite + TypeScript, Vitest, html-to-image + jsPDF (kartu dirender browser agar Arab benar), idb-keyval, @fontsource/amiri, Capacitor untuk APK.
 
 ## Tindakan pemilik yang mungkin diperlukan
-- Aktifkan GitHub Pages: Settings → Pages → Source: GitHub Actions (jika pengaktifan otomatis gagal).
-- Tambahkan rahasia penanda tangan APK di Settings → Secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Simpan cadangan kunci.
+- Aktifkan GitHub Pages: Settings → Pages → Source: GitHub Actions. `pages.yml` hanya jalan pada push ke `main`.
+- Tambahkan rahasia penanda tangan APK (Settings → Secrets): `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Simpan cadangan kunci.
 - Uji APK di ponsel Android nyata.
 
 ## Langkah berikutnya
-1. Pemilik memeriksa rencana dan memilih cara eksekusi.
-2. Kerjakan Task 1 sampai 12 berurutan, satu commit per tugas.
-3. Buktikan lebih awal risiko terbesar: huruf Arab bersambung dan harakat di PDF, serta cetak bolak-balik yang sejajar (Task 8).
-4. Perbarui file ini di akhir setiap sesi kerja.
+Task 2 (parser tabel, `src/core/parse.ts`, tes di rencana), lalu Task 3 sampai 12 berurutan. Buktikan lebih awal risiko Arab dan cetak bolak-balik di Task 8. Perbarui file ini di akhir setiap sesi.
 
 ## Aturan kerja
-- Jawab dalam bahasa Indonesia.
-- Akhiri setiap balasan dengan blok prompt lanjutan (di bawah) supaya pekerjaan bisa dilanjutkan dari akun lain.
-- Catat keputusan penting di repo, bukan hanya di percakapan.
-- Repo ini publik: jangan menaruh kunci atau rahasia di dalamnya.
+- Jawab dalam bahasa Indonesia. Akhiri setiap balasan dengan prompt lanjutan di bawah.
+- Catat keputusan penting di repo. Repo publik: tanpa kunci atau rahasia.
+- Kuota akun cepat habis: kerja ringkas, commit sering, perbarui file ini.
 
 ## Prompt lanjutan
 ```
 Lanjutkan proyek aplikasi flashcard siap print untuk kelas bahasa Arab di repo
-https://github.com/sherlocomp-cyber/flashcard (branch main).
-Baca dulu HANDOFF.md, docs/superpowers/specs/2026-10-18-flashcard-design.md,
+https://github.com/sherlocomp-cyber/flashcard, branch build/app.
+Baca dulu HANDOFF.md (di branch build/app), docs/superpowers/specs/2026-10-18-flashcard-design.md,
 dan docs/superpowers/plans/2026-10-18-flashcard-app.md.
-Status: rancangan disetujui, rencana 12 tugas ditulis, cara eksekusi: native.
-Task 1 separuh jalan di branch build/app (baca HANDOFF.md di branch itu).
-Hambatan sebelumnya: npm install ditolak proxy (403) di sesi lama. Jalankan
-npm install dulu; bila lolos, lanjutkan Task 1 dari tes smoke (RED), lalu
-Task 2 dst. Bila masih ditolak, lapor ke pemilik dan jangan cari jalan memutar.
+Status: Task 1 selesai (CI hijau). Cara eksekusi: native (superpowers:executing-plans).
+Sandbox tidak bisa npm install, jadi tes dijalankan lewat GitHub Actions
+(lihat bagian "Cara menjalankan tes" di HANDOFF.md). Lanjutkan dari Task 2,
+satu commit per tugas, tulis tes dulu dan pastikan CI merah sebelum kodenya.
 Jawab dalam bahasa Indonesia. Perbarui HANDOFF.md dan akhiri setiap balasan
 dengan prompt lanjutan seperti ini.
 ```
