@@ -1,13 +1,15 @@
 name: verify-pdf
 
 # Bukti visual PDF (huruf Arab bersambung, harakat, sisi belakang sejajar).
-# Jalan manual (Run workflow) atau saat berkas verifikasi berubah. Hasil: artefak "verify-pdf" berisi PNG dan PDF.
+# Jalan manual (Run workflow) atau saat berkas verifikasi atau kode tampilan/ekspor (src/) berubah.
+# Hasil: artefak "verify-pdf" berisi PNG dan PDF.
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
       - 'scripts/verify-*'
+      - 'src/**'
       - '.github/workflows/verify-pdf.yml'
 
 jobs:
