@@ -1,3 +1,5 @@
+import './fonts.css';
+
 export function mount(root: HTMLElement): void {
   root.innerHTML =
     '<main class="shell"><h1>Flashcard Arab</h1>' +
