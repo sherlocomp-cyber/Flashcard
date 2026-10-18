@@ -138,7 +138,8 @@ describe('exportPdf', () => {
 
   it('cut_marks_are_drawn_only_when_requested', async () => {
     const cards = ['A', 'B', 'C', 'D'].map(mk);
-    const lines = (pdf: string): number => (pdf.match(/\sl\n/g) ?? []).length;
+    // Hitung operator garis ("x y l"); selisih on-off membatalkan kecocokan semu di data gambar.
+    const lines = (pdf: string): number => (pdf.match(/\d\s+l\s/g) ?? []).length;
     const off = await readBinary(await exportPdf(cards, { ...base, sides: 'front', cutMarks: false, deps: probe().deps }));
     const on = await readBinary(await exportPdf(cards, { ...base, sides: 'front', cutMarks: true, deps: probe().deps }));
     expect(lines(on) - lines(off)).toBe(2 * (2 + 1) + 2 * (2 + 1)); // 12 tanda untuk kisi 2x2
