@@ -7,8 +7,9 @@ Aplikasi web (GitHub Pages) dan APK Android untuk membuat flashcard siap cetak A
 
 ## Status
 - Dokumen rancangan: selesai, diperiksa, **disetujui pemilik** (2026-10-18).
-- Rencana implementasi (12 tugas): selesai ditulis, menunggu pemilik memeriksa dan memilih cara eksekusi (subagent-driven atau native).
-- Kode: belum ada. Mulai dari Task 1 setelah pemilik memilih cara eksekusi.
+- Rencana implementasi (12 tugas): selesai ditulis. Pemilik memilih cara eksekusi **native** (satu agen mengerjakan semua tugas, satu pemeriksa independen di akhir).
+- Kode: Task 1 baru separuh, di branch `build/app` (bukan `main`). Sudah ada `package.json`, `tsconfig.json`, `vite.config.ts`, `.gitignore`, dan tes `tests/smoke.test.ts` (belum dijalankan hijau). Belum ada `src/ui/main.ts`, `src/core/types.ts`, `index.html`, `pages.yml`.
+- **HAMBATAN (2026-10-18 23:10 WIB):** di sesi ini `npm install` gagal. Proxy keluar menjawab 403 (penolakan kebijakan) untuk `registry.npmjs.org`, dan DNS langsung tidak ada. Tidak ada paket npm yang bisa dipasang, jadi Vite, TypeScript, dan Vitest belum terpasang dan tes belum pernah dijalankan. Jangan mencari jalan memutar; lapor ke pemilik. Cek ulang di sesi atau akun lain dengan `npm install`.
 
 ## Keputusan yang sudah diambil
 Lihat bagian 2 sampai 12 di dokumen rancangan. Ringkasnya: satu aplikasi web (PWA) tanpa server, dibungkus jadi APK lewat GitHub Actions, kartu hemat tinta dengan hiasan di tepi, minimal delapan tema, masukan lewat tempel tabel, gambar opsional lewat unggah massal bernama sesuai kata.
@@ -37,9 +38,11 @@ Lanjutkan proyek aplikasi flashcard siap print untuk kelas bahasa Arab di repo
 https://github.com/sherlocomp-cyber/flashcard (branch main).
 Baca dulu HANDOFF.md, docs/superpowers/specs/2026-10-18-flashcard-design.md,
 dan docs/superpowers/plans/2026-10-18-flashcard-app.md.
-Status: rancangan disetujui pemilik, rencana implementasi 12 tugas sudah ditulis,
-belum ada kode. Jawab dalam bahasa Indonesia.
-Langkah berikutnya: bila pemilik sudah memilih cara eksekusi (subagent-driven
-atau native), kerjakan dari Task 1. Bila belum, tanyakan. Perbarui HANDOFF.md
-dan akhiri setiap balasan dengan prompt lanjutan seperti ini.
+Status: rancangan disetujui, rencana 12 tugas ditulis, cara eksekusi: native.
+Task 1 separuh jalan di branch build/app (baca HANDOFF.md di branch itu).
+Hambatan sebelumnya: npm install ditolak proxy (403) di sesi lama. Jalankan
+npm install dulu; bila lolos, lanjutkan Task 1 dari tes smoke (RED), lalu
+Task 2 dst. Bila masih ditolak, lapor ke pemilik dan jangan cari jalan memutar.
+Jawab dalam bahasa Indonesia. Perbarui HANDOFF.md dan akhiri setiap balasan
+dengan prompt lanjutan seperti ini.
 ```

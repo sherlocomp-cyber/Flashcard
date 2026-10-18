@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.superpowers/
+.worktrees/
+android/app/build/
+android/.gradle/
+android/build/
+*.keystore
+*.jks
+.DS_Store
