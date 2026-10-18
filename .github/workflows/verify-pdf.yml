@@ -1,0 +1,45 @@
+name: verify-pdf
+
+# Bukti visual PDF (huruf Arab bersambung, harakat, sisi belakang sejajar).
+# Jalan manual (Run workflow) atau saat berkas verifikasi berubah. Hasil: artefak "verify-pdf" berisi PNG dan PDF.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/verify-*'
+      - '.github/workflows/verify-pdf.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: npm install --no-save --no-audit --no-fund playwright
+      - run: npx playwright install --with-deps chromium
+      - name: Jalankan server Vite
+        run: |
+          npx vite --port 5173 --strictPort > vite.log 2>&1 &
+          for i in $(seq 1 40); do
+            curl -sf http://localhost:5173/ > /dev/null && break
+            sleep 1
+          done
+          curl -sf http://localhost:5173/ > /dev/null
+      - name: Ekspor PDF contoh di peramban
+        run: node scripts/verify-pdf.mjs
+      - name: Ubah PDF menjadi PNG
+        run: |
+          command -v pdftoppm > /dev/null || (sudo apt-get update && sudo apt-get install -y poppler-utils)
+          pdftoppm -r 100 -png verify-out/sample.pdf verify-out/halaman
+          ls -la verify-out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verify-pdf
+          path: |
+            verify-out/
+            vite.log
