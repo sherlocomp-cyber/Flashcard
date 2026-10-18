@@ -8,24 +8,15 @@ Aplikasi web (GitHub Pages) dan APK Android untuk membuat flashcard siap cetak A
 ## Status
 - Rancangan: disetujui pemilik. Rencana: ditulis. Cara eksekusi: **native** (`superpowers:executing-plans`).
 - **Tempat kerja: `main`.** Alat githubku hanya menulis ke `main`, dan pemilik memberi izin penuh untuk bekerja di sana. Branch `build/app` usang; jangan dipakai kecuali pemilik minta.
-- **Task 1 sampai 9: SELESAI dan TERVERIFIKASI CI.** Task 9 dikonfirmasi lewat screenshot Actions pemilik (2026-10-19 05:40): #39 `test: penyimpanan dek (Task 9 MERAH...)` merah, #40 `chore: tambah idb-keyval dan fake-indexeddb (... tes masih MERAH)` merah, #41 `feat: penyimpanan dek ... (Task 9 HIJAU)` hijau, #42 `docs: handoff setelah Task 9` hijau. Urutan merah lalu hijau sesuai harapan. Catatan lama tetap berlaku: penyebab merah tiap commit tes tidak dibaca dari log; buktinya tidak langsung.
-- **Task 8: bukti visual PERTAMA ditemukan cacat, perbaikan sudah didorong, BELUM terverifikasi.** PNG/PDF `verify-pdf` (dari commit 72a0bfa) dinilai per pertanyaan spek:
-  - Arab bersambung: BAIK. Harakat tepat: BAIK (kasra di bawah, fatha/damma di atas huruf yang benar).
-  - Sisi belakang tercermin dan sejajar: BAIK (kartu 1 depan-kiri atas ↔ belakang kanan atas; baris bawah juga; lembar 2 hanya kartu 5, belakangnya di kanan).
-  - Materi panjang muat: BAIK (kartu 5 sisi belakang muat dengan huruf kecil).
-  - **Cacat 1: kata Latin dipecah di tengah kata** ("sekola" + "h", "campur" + "an") karena huruf terlalu besar (batas 72 px) dan `overflow-wrap:anywhere` membuat teks tak pernah dianggap meluap.
-  - **Cacat 2: kartu campuran Arab-Latin salah urut tanda kurung** (`الكِتَابُ (the book) رقم 12` tampil sebagai "the) (book ..."): tanda kurung di batas Arab/Latin ikut arah kanan-ke-kiri.
-  - Pengamatan belum dipastikan: pada kartu "5. الجملة الاسمية" angka "5." tampak di sisi kiri teks Arab (pada paragraf kanan-ke-kiri angka seharusnya di kanan). Tidak diubah karena sebab pastinya belum jelas (bisa dari data contoh `verify-harness.html`); periksa lagi di PNG baru.
-  - **Perbaikan sesi 5** (tes MERAH dulu, lalu kode): `src/core/bidi.ts` (`splitBidi`) memisah potongan Latin/angka beserta tanda kurung/kutip yang menempel; `cardView.ts` membungkusnya `<bdi dir="ltr">` hanya pada baris campuran; `LINE_WRAP_CSS` memakai `overflow-wrap:normal; word-break:normal` sehingga kata panjang membuat baris meluap lalu `fitFontSize` mengecilkan huruf; pengukur luapan bawaan kini juga memeriksa lebar tiap baris.
-  - Urutan commit dan harapan CI:
-    1. `test: isolasi Latin pada teks campuran Arab (... MERAH: bidi.ts belum ada)` : MERAH
-    2. `test: kartu campuran Arab-Latin dan tanpa pecah kata (... MERAH)` : MERAH
-    3. `feat: pemisah segmen Latin untuk teks campuran Arab` : MERAH (`cardViewText.test.ts` masih gagal impor `LINE_WRAP_CSS`)
-    4. `fix: kartu campuran Arab-Latin terisolasi dan kata tidak dipecah di tengah (Task 8 HIJAU)` : HIJAU
-    5. `docs: handoff setelah perbaikan Task 8 (sesi 5)` : HIJAU
-  - Bukti lokal: `splitBidi` dijalankan dengan `node --experimental-strip-types` (gagal sebelum kode ada, lulus sesudahnya). Tes DOM (`cardViewText.test.ts`) belum dijalankan; hanya CI. `tsc` untuk `cardView.ts` belum diperiksa lokal.
-  - Titik rawan: `bdi` di dalam `html-to-image` (SVG foreignObject), dan keandalan deteksi lebar per baris di Chromium. Hanya PNG `verify-pdf` baru yang bisa membuktikan; tes jsdom tidak mengukur tata letak. Tes `line_wrap_never_breaks_inside_a_word` hanya memeriksa konstanta CSS.
-- Task 10 sampai 12: belum dikerjakan. **Task 10 menunggu konfirmasi perbaikan Task 8** (CI hijau dan PNG baru). APK baru ada setelah Task 11 (tag `v0.1.0` memicu `release.yml`).
+- **Task 1 sampai 9: SELESAI dan TERVERIFIKASI CI.** Task 9 dikonfirmasi screenshot pemilik 05:40: #39 dan #40 merah, #41 dan #42 hijau. Catatan lama tetap berlaku: penyebab merah tiap commit tes tidak dibaca dari log; buktinya tidak langsung.
+- **Task 8: perbaikan sesi 5 TERVERIFIKASI CI, BELUM terverifikasi visual.**
+  - CI (screenshot pemilik 05:47): #43 `test: isolasi Latin ...` merah, #44 `test: kartu campuran ...` merah, #45 `feat: pemisah segmen Latin ...` merah, #46 `fix: kartu campuran Arab-Latin terisolasi ...` HIJAU (28 s), #47 `docs: handoff setelah perbaikan Task 8` hijau. Persis urutan yang diharapkan.
+  - Penilaian PNG/PDF `verify-pdf` lama (commit 72a0bfa, dinilai di sesi 5): Arab bersambung BAIK; harakat tepat BAIK; sisi belakang tercermin dan sejajar BAIK (kedua lembar); materi panjang muat BAIK. Cacat: (1) kata Latin dipecah di tengah kata ("sekola"+"h", "campur"+"an"); (2) kartu `الكِتَابُ (the book) رقم 12` urutan tanda kurung salah ("the) (book"). Pengamatan belum dipastikan: angka "5." pada kartu "5. الجملة الاسمية" tampak di sisi kiri teks Arab (pada paragraf kanan-ke-kiri seharusnya di kanan); sebabnya belum jelas (mungkin dari data contoh di `scripts/verify-harness.html`); periksa di PNG baru.
+  - **Kiriman PDF kedua pemilik (`sample_1.pdf`, 05:49) IDENTIK byte demi byte (md5 942dcfa2...) dengan yang lama.** Sebabnya: `verify-pdf` hanya terpicu oleh `scripts/verify-*` dan berkas workflow-nya, jadi perbaikan di `src/` tidak menjalankannya; run yang terlihat di tab Actions hanya #1 (commit 72a0bfa). Jadi sampai saat ini BELUM ada bukti visual untuk kode yang sudah diperbaiki.
+  - Perbaikan kode: `src/core/bidi.ts` (`splitBidi`), `cardView.ts` membungkus potongan Latin/angka `<bdi dir="ltr">` hanya pada baris campuran, `LINE_WRAP_CSS` (`overflow-wrap:normal; word-break:normal`), pengukur luapan bawaan memeriksa lebar tiap baris.
+  - Commit `ci: verify-pdf juga jalan saat src/ berubah` menambah `src/**` ke pemicu `verify-pdf` dan, karena mengubah berkas workflow-nya sendiri, memicu run baru (#2) pada kode yang sudah diperbaiki. PNG dari run #2 itulah yang harus dinilai.
+  - Titik rawan yang masih terbuka: `bdi` di dalam `html-to-image` (SVG foreignObject); keandalan deteksi lebar per baris di Chromium; tes jsdom tidak mengukur tata letak (`line_wrap_never_breaks_inside_a_word` hanya memeriksa konstanta CSS).
+- Task 10 sampai 12: belum dikerjakan. **Task 10 menunggu penilaian PNG run #2.** APK baru ada setelah Task 11 (tag `v0.1.0` memicu `release.yml`).
 - `HANDOFF-main.md` usang; boleh dihapus lewat web GitHub.
 
 ## Cara menjalankan tes (PENTING)
@@ -34,6 +25,7 @@ Di sandbox Claude, `npm install` ditolak proxy (keputusan pemilik: pakai GitHub 
 2. Sandbox tidak bisa membaca hasil Actions (github.com memblokir akses otomatis dan `web_fetch` hanya boleh membuka URL dari pesan pemilik). Minta pemilik mengirim satu screenshot daftar run di tab Actions; judul commit memetakan status tiap commit.
 3. Kalau ada yang merah di luar harapan, minta screenshot halaman run, lalu job, lalu langkah `npm test`.
 4. Cek lokal yang bisa dilakukan: `tsc` global ada di sandbox (`tsc -p` dengan stub modul `vitest`, `*.css`, dan paket luar); tes murni dijalankan dengan `node --experimental-strip-types` memakai skrip tegasan `node:assert` (impor diberi akhiran `.ts`). Uji DOM dan uji yang butuh `jspdf`/`idb-keyval` tidak bisa dijalankan lokal.
+5. Bukti visual PDF: sejak sesi 5 `verify-pdf` terpicu otomatis oleh perubahan di `src/`, `scripts/verify-*`, atau berkas workflow-nya, dan bisa dijalankan manual (Run workflow). Sebelum menilai PNG, pastikan PDF-nya baru (bandingkan dengan kiriman sebelumnya, mis. ukuran/hash), jangan menilai artefak dari run lama.
 Hemat kuota: dorong beberapa tugas berturut-turut, lalu minta satu screenshot untuk semuanya.
 
 ## Keputusan (ruling) Task 2 sampai 7
@@ -60,6 +52,7 @@ Hemat kuota: dorong beberapa tugas berturut-turut, lalu minta satu screenshot un
 - Peringatan luapan (`data-overflow`) belum dikirim keluar dari `exportPdf`; Task 10 menampilkannya di pratinjau. Bila pemilik ingin peringatan juga saat ekspor, tambahkan callback.
 - **Sesi 5, Ruling: kata tidak pernah dipecah di tengah** (`overflow-wrap:normal`, bukan `anywhere`); kata terlalu panjang membuat huruf mengecil, dan bila pada 12 px pun meluap kartu diberi `data-overflow`. Biayanya bila salah: kata sangat panjang (mis. satu kata Latin lebih dari ±12 huruf di kartu 9 per lembar) menjadi kecil atau bertanda luapan, bukan terbungkus.
 - **Sesi 5, Ruling: isolasi bidi hanya pada baris yang memuat Arab DAN Latin/angka** (`<bdi dir="ltr">`), baris murni Arab atau murni Latin tidak berubah. Potongan Latin = satu run dari huruf/angka Latin (beserta pembuka `([{"'` di depannya) sampai huruf Arab berikutnya, spasi akhir dikeluarkan. Biayanya bila salah: tanda baca penutup yang jatuh persis sebelum teks Arab bisa ikut run Latin; run Latin yang sangat panjang tidak membungkus di tengah run.
+- **Sesi 5, Ruling: `verify-pdf` terpicu juga oleh `src/**`.** Alasan: pemicu lama membuat perbaikan di `src/` tidak menghasilkan bukti visual baru, dan sempat hampir dinilai dari artefak lama. Biayanya bila salah: tiap dorongan ke `src/` menjalankan job ±1 menit (kuota Actions), dan job bisa merah karena Playwright/Chromium tanpa ada kesalahan di kode aplikasi.
 
 ## Keputusan (ruling) Task 9
 - Penyimpanan: IndexedDB lewat `idb-keyval`, basis data `flashcard`, penyimpanan `decks`, kunci `deck:<id>`. Penyimpanan dibuat malas (saat pertama dipakai), bukan saat modul dimuat, agar aman tanpa IndexedDB. `saveDeck` menyimpan apa adanya; pemanggil (Task 10) yang mengisi `updatedAt`.
@@ -73,14 +66,13 @@ Hemat kuota: dorong beberapa tugas berturut-turut, lalu minta satu screenshot un
 Lihat bagian 2 sampai 12 dokumen rancangan. Pilihan teknis rencana: Vite + TypeScript, Vitest, html-to-image + jsPDF (kartu dirender browser agar Arab benar), idb-keyval, @fontsource/amiri, Capacitor untuk APK.
 
 ## Tindakan pemilik yang mungkin diperlukan
-- Kirim screenshot daftar run Actions untuk commit perbaikan Task 8 (5 commit di atas).
-- **Setelah run `verify-pdf` baru selesai, unduh artefaknya dan kirim PNG** (tab Actions → verify-pdf → Artifacts → `verify-pdf`). Nilai: (a) kata Latin ("sekolah", "campuran Arab dan Latin") tidak lagi terpecah di tengah kata? (b) kartu campuran `الكِتَابُ (the book) رقم 12` memuat "(the book)" utuh dengan tanda kurung benar? (c) posisi "5." pada kartu "الجملة الاسمية"? (d) masih bersambung, harakat tepat, dan cermin sejajar?
+- **Buka tab Actions → workflow `verify-pdf`.** Harus ada run #2 (judul `ci: verify-pdf juga jalan saat src/ berubah ...`). Tunggu hijau (±1 menit), buka run itu, unduh artefak `verify-pdf`, dan kirim PNG `halaman-1.png` sampai `halaman-4.png` (atau `sample.pdf`). Bila run #2 tidak ada, tekan "Run workflow" di halaman `verify-pdf`. Nilai: (a) kata Latin ("sekolah", "campuran Arab dan Latin") tidak lagi terpecah di tengah kata? (b) kartu campuran `الكِتَابُ (the book) رقم 12` memuat "(the book)" utuh dengan tanda kurung benar? (c) posisi "5." pada kartu "الجملة الاسمية"? (d) Arab masih bersambung, harakat tepat, cermin sejajar? Bila run #2 merah, kirim screenshot halaman run dan langkah yang gagal.
 - Nanti: aktifkan GitHub Pages (Settings → Pages → Source: GitHub Actions) sebelum `pages.yml` ditambahkan ke `main`.
 - Nanti: tambahkan rahasia penanda tangan APK (Settings → Secrets): `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Simpan cadangan kunci. Tanpa rahasia ini APK tetap dibuat tetapi bertanda kunci debug (`...-debug.apk`).
 - Nanti: cetak satu lembar uji dari PDF hasil aplikasi nyata (Task 10) dan nilai Arab bersambung, harakat, dan keselarasan bolak-balik; uji APK di ponsel Android nyata (simpan/bagikan PDF tidak bisa dibuktikan dari sandbox).
 
 ## Langkah berikutnya
-Konfirmasi hasil CI perbaikan Task 8 dan penilaian PNG `verify-pdf` baru. Bila ada yang tidak sesuai, perbaiki dulu. Bila sesuai, kerjakan Task 10 (alur antarmuka; terapkan skill `impeccable:impeccable` pada tampilan akhir), lalu Task 11 (APK) dan 12 berurutan di `main`. Perbarui file ini di akhir setiap sesi.
+Nilai PNG `verify-pdf` run #2. Bila ada yang tidak sesuai, perbaiki dulu (Task 8 lebih dulu). Bila sesuai, kerjakan Task 10 (alur antarmuka; terapkan skill `impeccable:impeccable` pada tampilan akhir), lalu Task 11 (APK) dan 12 berurutan di `main`. Perbarui file ini di akhir setiap sesi.
 
 ## Aturan kerja
 - Jawab dalam bahasa Indonesia. Akhiri setiap balasan dengan prompt lanjutan di bawah.
@@ -94,14 +86,13 @@ Lanjutkan proyek aplikasi flashcard siap print untuk kelas bahasa Arab di repo
 https://github.com/sherlocomp-cyber/flashcard (bekerja langsung di branch main atas izin pemilik).
 Baca dulu HANDOFF.md, docs/superpowers/specs/2026-10-18-flashcard-design.md,
 dan docs/superpowers/plans/2026-10-18-flashcard-app.md.
-Status: Task 1 sampai 9 terverifikasi CI. Task 8 diperbaiki di sesi 5 (kata Latin dipecah di tengah kata,
-tanda kurung terbalik pada kartu campuran Arab-Latin): tes MERAH lalu kode HIJAU sudah didorong ke main,
-belum terverifikasi.
-Hasil CI perbaikan Task 8 menurut screenshot Actions saya: [ISI: tempel screenshot, atau tulis merah/hijau
-per commit; jangan dikirim dengan tanda kurung ini kosong].
-Hasil verify-pdf baru (PNG artefak): [ISI: tempel PNG atau tulis penilaian: kata Latin tidak terpecah?
+Status: Task 1 sampai 9 terverifikasi CI. Perbaikan Task 8 (kata Latin dipecah di tengah kata, tanda
+kurung terbalik pada kartu campuran Arab-Latin) sudah lulus CI (#43 sampai #45 merah, #46 dan #47 hijau),
+tetapi bukti visualnya belum ada: verify-pdf run #2 dipicu ulang oleh commit "ci: verify-pdf juga jalan
+saat src/ berubah".
+Hasil verify-pdf run #2 (PNG artefak): [ISI: tempel PNG atau tulis penilaian: kata Latin tidak terpecah?
 kartu "الكِتَابُ (the book) رقم 12" benar? posisi "5." pada kartu الجملة الاسمية? Arab masih bersambung,
-harakat tepat, cermin sejajar?; jangan dikirim kosong].
+harakat tepat, cermin sejajar?; atau bila run merah, tempel screenshot halaman run; jangan dikirim kosong].
 Cara eksekusi: native (superpowers:executing-plans). Sandbox tidak bisa npm install dan tidak bisa
 membaca hasil Actions maupun mengunduh artefak, jadi saya yang mengirim screenshot dan PNG. Bila hasil
 tidak sesuai harapan, perbaiki dulu (Task 8 lebih dulu). Bila sesuai, lanjutkan dari Task 10 (alur antarmuka
