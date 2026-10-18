@@ -10,7 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@fontsource/amiri": "^5.0.0"
+    "@fontsource/amiri": "^5.0.0",
+    "html-to-image": "^1.11.13",
+    "jspdf": "^3.0.1"
   },
   "devDependencies": {
     "jsdom": "^25.0.1",
