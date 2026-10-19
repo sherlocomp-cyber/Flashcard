@@ -95,6 +95,9 @@ p { margin: 0; }
   .area-paste { grid-area: paste; }
   .area-map { grid-area: map; }
   .area-style { grid-area: style; }
+  .area-images { grid-area: images; }
+  .area-cards { grid-area: cards; }
+  .area-deck { grid-area: deck; }
   .stage { grid-area: stage; position: sticky; top: 1rem; align-self: start; max-height: calc(100vh - 2rem); overflow: auto; }
 }
 
