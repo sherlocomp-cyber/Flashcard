@@ -2,7 +2,7 @@ import { splitBidi } from '../core/bidi';
 import { isMostlyArabic } from '../core/columns';
 import { fitFontSize } from '../core/fit';
 import type { Card, Line } from '../core/types';
-import { iconFor } from '../themes/icons';
+import { iconFor, keywordIcon } from '../themes/icons';
 import { ornamentSvg } from '../themes/ornaments';
 import type { Theme } from '../themes/themes';
 
@@ -16,9 +16,9 @@ export interface RenderOptions {
   measureOverflow?: (inner: HTMLElement) => boolean;
 }
 
-const HARAKAT = /[ً-ٰٟ]/g;
+const HARAKAT = /[\u064B-\u065F\u0670]/g;
 const HAS_ARABIC = /\p{Script=Arabic}/u;
-const HAS_LATIN_OR_DIGIT = /[A-Za-zÀ-ɏ0-9]/;
+const HAS_LATIN_OR_DIGIT = /[A-Za-z\u00C0-\u024F0-9]/;
 const ARABIC_FONT = "'Amiri', 'Noto Naskh Arabic', 'Traditional Arabic', serif";
 const LATIN_FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 
@@ -141,11 +141,16 @@ export function renderCardSide(
   stack.style.cssText =
     'margin:auto 0;width:100%;display:flex;flex-direction:column;align-items:center;gap:2mm;';
 
-  const hasVisual = Boolean(data.image) || data.iconKey !== undefined;
+  // Visual hanya tampil bila ada gambar unggahan, atau kata cocok dengan ikon kata kunci,
+  // atau sisi ini tidak punya teks sama sekali (kartu gambar tebak kata: jangan dibiarkan kosong,
+  // jadi ikon cadangan tema dipakai). Kartu bersisi teks tanpa gambar tidak diberi ikon cadangan.
+  const iconKey = data.iconKey;
+  const hasKeywordIcon = iconKey !== undefined && keywordIcon(iconKey) !== null;
+  const onlyVisual = data.lines.length === 0;
+  const hasVisual = Boolean(data.image) || hasKeywordIcon || (iconKey !== undefined && onlyVisual);
   if (hasVisual) {
-    const big = data.lines.length === 0;
-    const diameter = big ? Math.min(w - 20, h - 20) : Math.round(h * 0.3);
-    stack.appendChild(buildVisual(data.image, data.iconKey ?? '', theme, Math.max(12, diameter)));
+    const diameter = onlyVisual ? Math.min(w - 20, h - 20) : Math.round(h * 0.3);
+    stack.appendChild(buildVisual(data.image, iconKey ?? '', theme, Math.max(12, diameter)));
   }
 
   const lineEls = data.lines.map((l) => buildLine(l, opts.harakat));
