@@ -117,7 +117,8 @@ describe('renderCardSide: pembungkusan kata Latin', () => {
 
   it('latin_hyphenated_word_stays_in_one_nowrap_unit', () => {
     const el = renderCardSide(card(['Murid (laki-laki)'], [], 'id'), 'front', theme, { harakat: true });
-    const unit = units(el).find((u) => u.textContent === 'laki-laki)');
+    expect(units(el).map((u) => u.textContent)).toEqual(['Murid', '(laki-laki)']);
+    const unit = units(el).find((u) => u.textContent === '(laki-laki)');
     expect(unit).toBeDefined();
     expect(nowrap(unit as HTMLElement)).toBe(true);
   });
