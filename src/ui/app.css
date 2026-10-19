@@ -87,6 +87,7 @@ p { margin: 0; }
       'paste stage'
       'map stage'
       'style stage'
+      'layout stage'
       'images stage'
       'cards stage'
       'deck stage';
@@ -95,6 +96,7 @@ p { margin: 0; }
   .area-paste { grid-area: paste; }
   .area-map { grid-area: map; }
   .area-style { grid-area: style; }
+  .area-layout { grid-area: layout; }
   .area-images { grid-area: images; }
   .area-cards { grid-area: cards; }
   .area-deck { grid-area: deck; }
@@ -213,9 +215,27 @@ label.btn { position: relative; }
 .stage-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
 .stage-count { font-size: 0.9375rem; }
 .count { font-weight: 700; font-size: 1.125rem; }
+.stage-actions { justify-content: flex-start; }
 .stage-tools { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
 .stage-tools .seg { flex: 0 0 auto; }
 .pager { display: flex; align-items: center; gap: 0.5rem; }
+
+/* Keadaan kosong: bingkai putus-putus seperti tepi kertas, bukan kartu di dalam kartu. */
+.preview-empty {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.5rem;
+  min-height: 16rem;
+  padding: 2rem 1.25rem;
+  text-align: center;
+  color: var(--muted);
+  background: var(--surface);
+  border: 2px dashed var(--line-strong);
+  border-radius: var(--radius);
+}
+.preview-empty strong { color: var(--ink); font-size: 1.0625rem; }
+.preview-empty p { max-width: 36ch; }
 
 .sheet-wrap { --s: 0.45; background: #dde8e5; border-radius: var(--radius); padding: 0.75rem; display: flex; justify-content: center; overflow: hidden; }
 .sheet-frame { width: calc(210mm * var(--s)); height: calc(297mm * var(--s)); flex: none; }
