@@ -36,6 +36,12 @@ const KEYWORDS: Record<string, string> = {
   tas: 'bag', bag: 'bag', 'حقيبة': 'bag',
 };
 
+/** Ikon dari kata kunci, atau null bila kata tidak dikenali (tanpa ikon cadangan). */
+export function keywordIcon(word: string): { name: string; svg: string } | null {
+  const name = KEYWORDS[normalizeKey(word)];
+  return name && ICONS[name] ? { name, svg: ICONS[name] } : null;
+}
+
 /** Pilih ikon dari kata kunci; bila tak dikenali, pakai ikon cadangan tema. */
 export function iconFor(word: string, fallback: string): { name: string; svg: string } {
   const name = KEYWORDS[normalizeKey(word)] ?? fallback;
