@@ -4,6 +4,7 @@ import { fitFontSize } from '../core/fit';
 import type { Card, Line } from '../core/types';
 import { iconFor, keywordIcon } from '../themes/icons';
 import { ornamentSvg } from '../themes/ornaments';
+import { patternBand } from '../themes/patterns';
 import type { Theme } from '../themes/themes';
 
 export interface RenderOptions {
@@ -122,6 +123,23 @@ function corner(theme: Theme, pos: 'tl' | 'tr' | 'bl' | 'br'): HTMLElement {
   return el;
 }
 
+/**
+ * Pita pola tipis di tepi atas atau bawah, di antara hiasan sudut. Tengah kartu tidak disentuh
+ * (hemat tinta, teks tetap di atas putih). Mengembalikan null untuk tema tanpa pola.
+ */
+function band(theme: Theme, pos: 'top' | 'bottom'): HTMLElement | null {
+  const image = patternBand(theme.pattern, theme.color, theme.accent);
+  if (image === '') return null;
+  const el = document.createElement('div');
+  el.className = `fc-band fc-band-${pos}`;
+  el.setAttribute('data-pattern', theme.pattern);
+  el.setAttribute('aria-hidden', 'true');
+  el.style.cssText =
+    `position:absolute;left:10mm;right:10mm;height:3.2mm;${pos}:2.4mm;pointer-events:none;` +
+    `background-image:${image};background-repeat:repeat-x;background-size:auto 100%;background-position:center;`;
+  return el;
+}
+
 function buildVisual(
   image: string | undefined,
   iconKey: string,
@@ -172,6 +190,10 @@ export function renderCardSide(
     `position:relative;box-sizing:border-box;width:${w}mm;height:${h}mm;background:#ffffff;` +
     `border:1.4mm ${theme.border} ${theme.color};border-radius:4mm;overflow:hidden;color:${theme.ink};`;
   for (const pos of ['tl', 'tr', 'bl', 'br'] as const) root.appendChild(corner(theme, pos));
+  for (const pos of ['top', 'bottom'] as const) {
+    const b = band(theme, pos);
+    if (b) root.appendChild(b);
+  }
 
   const inner = document.createElement('div');
   inner.className = 'fc-inner';
