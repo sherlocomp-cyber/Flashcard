@@ -1,6 +1,6 @@
 # HANDOFF: aplikasi flashcard siap print (bahasa Arab)
 
-Terakhir diperbarui: 2026-10-19 (sesi 6, bekerja langsung di `main` atas izin pemilik)
+Terakhir diperbarui: 2026-10-19 (sesi 7, bekerja langsung di `main` atas izin pemilik)
 
 ## Proyek
 Aplikasi web (GitHub Pages) dan APK Android untuk membuat flashcard siap cetak A4 dari tabel yang ditempel. Pemilik adalah guru bahasa Arab. Keputusan: `docs/superpowers/specs/2026-10-18-flashcard-design.md`. Rencana 12 tugas: `docs/superpowers/plans/2026-10-18-flashcard-app.md`. Konteks produk: `PRODUCT.md`. `DESIGN.md` belum ada.
@@ -8,8 +8,9 @@ Aplikasi web (GitHub Pages) dan APK Android untuk membuat flashcard siap cetak A
 ## Status
 - **Tempat kerja: `main`.** Alat githubku hanya menulis ke `main`. Branch `build/app` usang.
 - **Task 1 sampai 9: SELESAI, terverifikasi CI.** Task 8 juga terverifikasi visual (PDF nyata).
-- **Task 10 (alur antarmuka): CI hijau. Tampilan BELUM pernah dinilai pemilik/manusia** (tidak ada peramban di sandbox). Minta tangkapan layar ponsel dan desktop.
-- **Task 11 (PWA luring, simpan/bagikan, Cetak Android, APK): KODE SELESAI, CI #86 dan Pages #28 hijau.** Belum terbukti: `release.yml` belum pernah berjalan (butuh tag), APK belum diuji di ponsel, service worker/luring belum diuji di peramban nyata.
+- **Task 10 (alur antarmuka): CI hijau. Tampilan BELUM pernah dinilai pemilik/manusia.** Minta tangkapan layar ponsel dan desktop.
+  - **Sesi 7:** skala pratinjau dipindah ke `src/ui/scale.ts` (`sheetScale(lebar, tinggi)`: tidak memperbesar, batas bawah 0,35, null bila lebar belum terukur) dan dipasang di `fitSheet` pada `src/ui/app.ts`. Layar ≥ 64rem: tinggi layar dikurangi 300 px (`STAGE_CHROME_PX`, tebakan) ikut membatasi supaya satu lembar utuh terlihat; ponsel: hanya lebar. Bantalan `.sheet-wrap` (24 px) kini dikurangkan dari lebar; ada listener `resize`. Tes baru: `tests/scale.test.ts`. **CI belum diperiksa setelah dua commit ini** (sesi 7 tidak bisa membaca status CI); periksa dulu.
+- **Task 11 (PWA luring, simpan/bagikan, Cetak Android, APK): KODE SELESAI, CI #86 dan Pages #28 hijau (sebelum sesi 7).** Belum terbukti: `release.yml` belum pernah berjalan (butuh tag), APK belum diuji di ponsel, service worker/luring belum diuji di peramban nyata.
   - `pwa.config.ts` + `vite-plugin-pwa` (precache js/css/html/woff2/svg/webmanifest, manifest relatif, ikon `public/icon.svg`); plugin dimatikan saat `VITEST`.
   - `src/render/share.ts`: `shareOrSave`, `shareOrSavePdf`, `blobToBase64`. Web: unduh `<a download>`. Android: tulis ke cache (Capacitor Filesystem) lalu `Share.share`; batal bagikan tidak dianggap galat (ditangani di `shareNative` bawaan, bukan di `shareOrSavePdf`).
   - `src/render/print.ts`: `printOrSharePdf`. Web: iframe + `print()`. Android: lembar bagikan (WebView tidak bisa mencetak iframe). Dipasang lewat `main.ts` (`saveFile`, `printBlob`).
@@ -25,7 +26,7 @@ Kunci rilis dibuat di sandbox (PKCS12, RSA 2048, alias `flashcard`, berlaku 1000
 ## Cara menjalankan tes (PENTING)
 Di sandbox Claude, `npm install` ditolak proxy. Jangan mencari jalan memutar. Alur di `main`:
 1. Dorong tes dulu (CI harus MERAH), lalu kodenya (CI harus HIJAU). Satu commit per berkas; beri label MERAH/HIJAU di pesan commit.
-2. Status CI bisa dibaca lewat `WebFetch` ke `https://github.com/sherlocomp-cyber/Flashcard/actions/workflows/ci.yml?query=branch%3Amain` (dan `pages.yml`); URL berbeda untuk melewati cache 15 menit. Log langkah butuh login, jadi untuk galat rinci minta pemilik mengirim screenshot halaman run. Halaman `github.com/.../tree/...` diblokir robots.
+2. Status CI bisa dibaca lewat `WebFetch` ke `https://github.com/sherlocomp-cyber/Flashcard/actions/workflows/ci.yml?query=branch%3Amain` (dan `pages.yml`); URL berbeda untuk melewati cache 15 menit. Log langkah butuh login, jadi untuk galat rinci minta pemilik mengirim screenshot halaman run. Halaman `github.com/.../tree/...` diblokir robots. (Sesi 7 di chat claude.ai: `web_fetch` menolak URL ini karena tidak pernah muncul di hasil pencarian; hanya alat githubku `get_file`/`put_file` yang tersedia.)
 3. Daftar folder: `https://api.github.com/repos/sherlocomp-cyber/Flashcard/contents/<path>` lewat `WebFetch` (alat `get_file` tidak bisa membaca folder).
 4. Cek lokal: `tsc` global ada di sandbox; tes murni bisa dijalankan dengan `node --experimental-strip-types`. Tes DOM dan yang butuh `jspdf`/`idb-keyval` tidak bisa lokal.
 5. Bukti visual PDF: job `verify-pdf` (terpicu oleh `src/**`). Sebelum menilai PNG/PDF kiriman pemilik, bandingkan hash `md5sum` dengan kiriman sebelumnya.
@@ -53,7 +54,7 @@ Hemat kuota: dorong beberapa tugas berturut-turut, lalu periksa sekali.
 - Format berkas dek: `{ "format": "flashcard-deck", "version": 1, "deck": {...} }`, gambar sebagai data URL. Galat impor berawalan `Berkas dek tidak valid:`. Batas kuota penyimpanan dengan 200 kartu bergambar belum diuji.
 
 ## Keputusan (ruling) Task 10
-- `src/ui/app.ts` (`createApp`), `dom.ts`, `app.css`, `main.ts`. Semua efek samping lewat `AppDeps` agar teruji di jsdom; `render/pdf` dimuat malas.
+- `src/ui/app.ts` (`createApp`), `dom.ts`, `app.css`, `main.ts`, `scale.ts`. Semua efek samping lewat `AppDeps` agar teruji di jsdom; `render/pdf` dimuat malas.
 - Satu layar: desktop (≥ 64rem) dua kolom, pratinjau menempel di kanan; ponsel satu kolom. Pratinjau menampilkan SATU lembar pada satu waktu (pager, saklar Depan/Belakang); peringatan "terlalu panjang" hanya untuk lembar yang tampil.
 - Pemetaan kolom muncul hanya bila ada kolom tak dikenali. Ganti jenis kartu/pemetaan membangun ulang kartu dari tabel (suntingan tangan hilang); tukar sisi aman. Dek yang dibuka dari penyimpanan tidak punya tabel.
 - Sunting hanya baris pertama tiap sisi (baris lanjutan baca-saja). Tema kustom = `themeId "custom:#rrggbb"`. Bawaan: 4 per lembar, depan dan belakang, tanda potong aktif, harakat tampil.
@@ -64,11 +65,11 @@ Hemat kuota: dorong beberapa tugas berturut-turut, lalu periksa sekali.
 2. **Pasang tag** `v0.1.0` (`git tag v0.1.0 && git push origin v0.1.0`, atau buat Release baru di GitHub dengan tag itu). Setelah itu cek tab Actions → "Release APK" dan unduh APK dari Releases. Bila merah, kirim screenshot halaman run.
 3. Konfirmasi atau ganti `appId` di `capacitor.config.ts` **sebelum APK dibagikan ke guru lain**: mengganti `appId` setelah APK beredar membuat aplikasi dianggap aplikasi berbeda.
 4. Uji APK di ponsel: tempel tabel, simpan PDF (lembar bagikan muncul?), tombol Cetak, mode pesawat (jalan tanpa internet?).
-5. Buka halaman Pages dan kirim tangkapan layar ponsel dan desktop; nilai kemudahan, tema, dan Arab di pratinjau.
+5. Buka halaman Pages dan kirim tangkapan layar ponsel dan desktop; nilai kemudahan, tema, dan Arab di pratinjau (termasuk apakah satu lembar utuh terlihat di desktop dan terbaca di ponsel).
 6. Cetak satu lembar uji dari printer nyata; nilai Arab bersambung, harakat, dan keselarasan bolak-balik.
 
 ## Langkah berikutnya
-Bila rilis APK gagal, perbaiki `release.yml` dulu (kemungkinan: versi Gradle/Java, `cap add android` di CI, jalur `app-release.apk`). Lalu tinjau tampilan Task 10 dari tangkapan layar pemilik dan perbaiki yang ribet atau kurang menarik; pertimbangkan job CI Playwright yang memotret halaman. Terakhir lakukan verifikasi akhir Task 12 (alur 20 kata di Pages). Perbarui file ini di akhir setiap sesi.
+Periksa CI `main` untuk dua commit sesi 7 (`tests/scale.test.ts`, `src/ui/app.ts`); bila merah, perbaiki dulu. Bila rilis APK gagal, perbaiki `release.yml` (kemungkinan: versi Gradle/Java, `cap add android` di CI, jalur `app-release.apk`). Lalu tinjau tampilan Task 10 dari tangkapan layar pemilik dan perbaiki yang ribet atau kurang menarik; pertimbangkan job CI Playwright yang memotret halaman. Terakhir lakukan verifikasi akhir Task 12 (alur 20 kata di Pages). Perbarui file ini di akhir setiap sesi.
 
 ## Aturan kerja
 - Jawab dalam bahasa Indonesia. Akhiri setiap balasan dengan prompt lanjutan di bawah bila diminta.
@@ -83,7 +84,9 @@ Lanjutkan proyek aplikasi flashcard siap print untuk kelas bahasa Arab di repo
 https://github.com/sherlocomp-cyber/Flashcard (langsung di branch main atas izin pemilik).
 Baca dulu HANDOFF.md, lalu spek dan rencana di docs/superpowers/. Gunakan selalu skill superpowers dan impeccable.
 Status: Task 1 sampai 11 selesai dan hijau di CI (Task 11 belum terbukti sebagai APK karena tag belum dipasang).
+Sesi 7 menambah skala pratinjau (scale.ts); CI untuk dua commit itu belum diperiksa.
 README.md dan HANDOFF.md sudah ditulis. Sisa: rilis APK pertama, penilaian tampilan, verifikasi akhir.
+Hasil CI main terbaru: [ISI: hijau/merah + screenshot bila merah; jangan dikirim kosong].
 Hasil rilis APK (tag v0.1.0): [ISI: hijau/merah + screenshot bila merah; jangan dikirim kosong].
 Hasil uji di ponsel dan tampilan aplikasi: [ISI: tangkapan layar atau penilaian; jangan dikirim kosong].
 Bila ada yang merah atau tidak sesuai, perbaiki dulu. Jawab dalam bahasa Indonesia.
