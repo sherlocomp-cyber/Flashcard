@@ -60,6 +60,17 @@ const WRAP_PADDING_PX = 24;
 /** Ruang di layar lebar untuk kepala, alat, dan tombol cetak di sekitar lembar pratinjau. */
 const STAGE_CHROME_PX = 300;
 
+/** Tabel contoh: enam kosakata dasar, supaya guru bisa langsung melihat hasilnya tanpa menyiapkan tabel. */
+const SAMPLE_TABLE = [
+  '| arab | arti | inggris |',
+  '| كِتَابٌ | buku | book |',
+  '| قَلَمٌ | pena | pen |',
+  '| مَدْرَسَةٌ | sekolah | school |',
+  '| بَيْتٌ | rumah | house |',
+  '| مُعَلِّمٌ | guru | teacher |',
+  '| طَالِبٌ | siswa | student |',
+].join('\n');
+
 function defaultDeps(): AppDeps {
   return {
     store: { saveDeck, loadDeck, deleteDeck, listDecks },
@@ -217,6 +228,11 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     icon('copy'),
     'Salin teks perintah untuk AI',
   );
+  const exampleBtn = h(
+    'button',
+    { id: 'load-example', type: 'button', class: 'btn', onClick: () => onExample() },
+    'Coba dengan tabel contoh',
+  );
   const mapSlot = h('div', { id: 'map-slot' });
 
   // ---------- gaya ----------
@@ -268,6 +284,12 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
   const sheet = h('div', { class: 'sheet' });
   const sheetFrame = h('div', { class: 'sheet-frame' }, sheet);
   const sheetWrap = h('div', { class: 'sheet-wrap' }, sheetFrame);
+  const previewEmpty = h(
+    'div',
+    { id: 'preview-empty', class: 'preview-empty' },
+    h('strong', {}, 'Lembar A4 muncul di sini'),
+    h('p', {}, 'Tempel tabel di kolom kiri, atau pakai tabel contoh untuk melihat hasilnya dalam sekejap.'),
+  );
   const overflowNote = h('p', { id: 'overflow-note', class: 'msg msg-warn', role: 'status', hidden: true });
 
   // ---------- cetak ----------
@@ -328,7 +350,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
         h('h2', {}, 'Tempel tabel'),
         h('p', { id: 'paste-hint', class: 'hint' }, 'Kartu langsung terbentuk begitu tabel ditempel. Satu baris sama dengan satu kartu.'),
         pasteBox,
-        h('div', { class: 'row-end' }, copyPrompt),
+        h('div', { class: 'row-end' }, exampleBtn, copyPrompt),
       ),
       h('div', { class: 'area-map' }, mapSlot),
       h(
@@ -346,16 +368,8 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
       ),
       h(
         'section',
-        { class: 'stage' },
-        h(
-          'div',
-          { class: 'stage-head' },
-          h('h2', {}, 'Pratinjau'),
-          h('p', { class: 'stage-count' }, countEl, sheetsEl),
-        ),
-        h('div', { class: 'stage-tools' }, sideGroup, h('div', { class: 'pager' }, prevBtn, sheetLabel, nextBtn)),
-        sheetWrap,
-        overflowNote,
+        { class: 'panel area-layout' },
+        h('h2', {}, 'Tata letak cetak'),
         h(
           'div',
           { class: 'print-opts' },
@@ -363,8 +377,22 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
           h('label', { class: 'field-inline' }, h('span', { class: 'label' }, 'Sisi yang dicetak'), sidesSel),
           h('label', { class: 'check' }, cutBox, h('span', {}, 'Tanda potong di tepi kertas')),
         ),
-        h('div', { class: 'row-end' }, printBtn, savePdfBtn),
+      ),
+      h(
+        'section',
+        { class: 'stage' },
+        h(
+          'div',
+          { class: 'stage-head' },
+          h('h2', {}, 'Pratinjau'),
+          h('p', { class: 'stage-count' }, countEl, sheetsEl),
+        ),
+        h('div', { class: 'row-end stage-actions' }, printBtn, savePdfBtn),
         progressEl,
+        h('div', { class: 'stage-tools' }, sideGroup, h('div', { class: 'pager' }, prevBtn, sheetLabel, nextBtn)),
+        previewEmpty,
+        sheetWrap,
+        overflowNote,
       ),
       panel(
         'area-images',
@@ -457,6 +485,11 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     const total = Math.max(1, pages.length);
     s.pageIndex = Math.min(Math.max(0, s.pageIndex), total - 1);
 
+    const empty = s.cards.length === 0;
+    exampleBtn.hidden = !empty;
+    previewEmpty.hidden = !empty;
+    sheetWrap.hidden = empty;
+
     countEl.textContent = `${s.cards.length} kartu`;
     sheetsEl.textContent = s.cards.length > 0 ? ` · ${front.length} lembar` : '';
     sheetLabel.textContent = `Lembar ${s.pageIndex + 1} dari ${total}`;
@@ -467,11 +500,11 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     sheet.style.gridTemplateColumns = `repeat(${g.cols}, ${g.cardW}mm)`;
     sheet.style.gridAutoRows = `${g.cardH}mm`;
     sheet.style.padding = `${g.marginY}mm ${g.marginX}mm`;
-    sheet.classList.toggle('sheet-empty', s.cards.length === 0);
+    sheet.classList.toggle('sheet-empty', empty);
 
     let tooLong = 0;
     const page = pages[s.pageIndex];
-    if (s.cards.length > 0 && page) {
+    if (!empty && page) {
       for (const card of page.slots) {
         if (!card) {
           sheet.append(h('div', { class: 'slot-free' }));
@@ -616,6 +649,11 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     s.pageIndex = 0;
     rebuild();
     renderAll();
+  }
+
+  function onExample(): void {
+    pasteBox.value = SAMPLE_TABLE;
+    onPaste();
   }
 
   function onType(t: CardType): void {
