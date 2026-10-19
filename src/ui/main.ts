@@ -1,9 +1,10 @@
 import './fonts.css';
+import './app.css';
+import { createApp, type AppDeps, type AppHandle } from './app';
 
-export function mount(root: HTMLElement): void {
-  root.innerHTML =
-    '<main class="shell"><h1>Flashcard Arab</h1>' +
-    '<p>Tempel tabel kosakata untuk membuat kartu siap cetak.</p></main>';
+/** Pasang aplikasi ke `root`. `deps` hanya dipakai tes untuk menggantikan efek samping. */
+export function mount(root: HTMLElement, deps?: Partial<AppDeps>): AppHandle {
+  return createApp(root, deps);
 }
 
 const appRoot =
