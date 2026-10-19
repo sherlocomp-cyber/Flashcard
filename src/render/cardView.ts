@@ -22,6 +22,11 @@ const HAS_LATIN_OR_DIGIT = /[A-Za-z\u00C0-\u024F0-9]/;
 const ARABIC_FONT = "'Amiri', 'Noto Naskh Arabic', 'Traditional Arabic', serif";
 const LATIN_FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 
+/** Batas atas ukuran huruf utama (px CSS) supaya kata pendek tidak tampil raksasa di samping kata panjang. */
+const MAX_PX_LATIN = 44;
+const MAX_PX_ARABIC = 60;
+const MIN_PX = 12;
+
 /**
  * Kata tidak pernah dipecah di tengah: kata yang terlalu panjang dibiarkan meluap
  * sehingga pengukur luapan mengecilkan huruf (bukan memotong kata menjadi "sekola" + "h").
@@ -215,13 +220,14 @@ export function renderCardSide(
     host.style.cssText = 'position:fixed;left:-10000px;top:0;visibility:hidden;';
     host.appendChild(root);
     document.body.appendChild(host);
+    const maxPx = HAS_ARABIC.test(data.lines[0].text) ? MAX_PX_ARABIC : MAX_PX_LATIN;
     const fit = fitFontSize(
       (px) => {
         apply(px);
         return { overflow: measureOverflow(inner) };
       },
-      72,
-      12,
+      maxPx,
+      MIN_PX,
     );
     apply(fit.px);
     host.removeChild(root);
