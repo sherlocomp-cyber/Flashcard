@@ -34,12 +34,33 @@ describe('renderCardSide', () => {
     expect(off.querySelector('.fc-line')!.textContent).toBe('كتاب');
   });
 
-  it('card_without_image_uses_theme_fallback_icon', () => {
-    const c = card(['كتاب'], ['buku']);
-    c.front.iconKey = 'kata-tak-dikenal';
+  it('card_with_text_and_no_image_or_keyword_has_no_icon', () => {
+    const c = card(['مهندس'], ['insinyur']);
+    c.front.iconKey = 'insinyur';
     const el = renderCardSide(c, 'front', theme, { harakat: true });
-    expect(el.querySelector(`[data-icon="${theme.fallbackIcon}"]`) !== null).toBe(true);
-    expect(el.querySelector('img') === null).toBe(true);
+    expect(el.querySelector('[data-icon]')).toBeNull();
+    expect(el.querySelector('.fc-visual')).toBeNull();
+    expect(el.querySelector('img')).toBeNull();
+    expect(el.querySelectorAll('.fc-line')).toHaveLength(1);
+  });
+
+  it('empty_iconkey_with_text_has_no_icon', () => {
+    const c = card(['كتاب'], ['buku']);
+    c.front.iconKey = '';
+    const el = renderCardSide(c, 'front', theme, { harakat: true });
+    expect(el.querySelector('.fc-visual')).toBeNull();
+  });
+
+  it('picture_front_without_image_or_keyword_keeps_fallback_icon_so_it_is_not_blank', () => {
+    const [c] = buildCards(
+      { headers: ['arab', 'arti'], rows: [['مهندس', 'insinyur']] },
+      { arab: 0, indonesia: 1 },
+      'picture',
+      false,
+    );
+    const front = renderCardSide(c, 'front', theme, { harakat: true });
+    expect(front.querySelectorAll('.fc-line')).toHaveLength(0);
+    expect(front.querySelector(`[data-icon="${theme.fallbackIcon}"]`)).not.toBeNull();
   });
 
   it('keyword_icon_and_uploaded_image_are_used', () => {
