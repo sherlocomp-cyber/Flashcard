@@ -110,3 +110,33 @@ describe('renderCardSide', () => {
     expect(document.querySelectorAll('.fc-card')).toHaveLength(0);
   });
 });
+
+describe('renderCardSide: pembungkusan kata Latin', () => {
+  const nowrap = (el: HTMLElement): boolean => /white-space:\s*nowrap/.test(el.getAttribute('style') ?? '');
+  const units = (el: HTMLElement): HTMLElement[] => Array.from(el.querySelectorAll<HTMLElement>('.fc-line .fc-w'));
+
+  it('latin_hyphenated_word_stays_in_one_nowrap_unit', () => {
+    const el = renderCardSide(card(['Murid (laki-laki)'], [], 'id'), 'front', theme, { harakat: true });
+    const unit = units(el).find((u) => u.textContent === 'laki-laki)');
+    expect(unit).toBeDefined();
+    expect(nowrap(unit as HTMLElement)).toBe(true);
+  });
+
+  it('lone_slash_sticks_to_the_previous_word', () => {
+    const el = renderCardSide(card(['Insinyur / Arsitek'], [], 'id'), 'front', theme, { harakat: true });
+    expect(units(el).map((u) => u.textContent)).toEqual(['Insinyur /', 'Arsitek']);
+    expect(units(el).every(nowrap)).toBe(true);
+  });
+
+  it('word_wrapping_does_not_change_the_text', () => {
+    const text = 'Pedagang / Pengusaha (laki-laki)';
+    const el = renderCardSide(card([text], [], 'id'), 'front', theme, { harakat: true });
+    expect(el.querySelector('.fc-line')!.textContent).toBe(text);
+  });
+
+  it('arabic_lines_are_not_split_into_word_units', () => {
+    const el = renderCardSide(card(['ربة البيت'], []), 'front', theme, { harakat: true });
+    expect(el.querySelector('.fc-w')).toBeNull();
+    expect(el.querySelector('.fc-line')!.textContent).toBe('ربة البيت');
+  });
+});
