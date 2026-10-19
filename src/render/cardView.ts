@@ -33,8 +33,45 @@ function dirFor(text: string): 'rtl' | 'ltr' | 'auto' {
   return isMostlyArabic(text) ? 'rtl' : 'auto';
 }
 
+/**
+ * Baris Latin murni: tiap kata dibungkus <span class="fc-w"> tanpa pemecahan baris, supaya kata
+ * berhubung seperti "laki-laki" tidak patah di tanda hubung. Garis miring yang berdiri sendiri
+ * ("Insinyur / Arsitek") dilekatkan ke kata sebelumnya. Teks (textContent) tidak berubah.
+ */
+function fillLatin(el: HTMLElement, text: string): void {
+  type Tok = { t: string; ws: boolean };
+  const toks: Tok[] = text
+    .split(/(\s+)/)
+    .filter((p) => p !== '')
+    .map((p) => ({ t: p, ws: /^\s+$/.test(p) }));
+  const out: Tok[] = [];
+  for (const tk of toks) {
+    const n = out.length;
+    if (!tk.ws && tk.t === '/' && n >= 2 && out[n - 1].ws && !out[n - 2].ws) {
+      out.splice(n - 2, 2, { t: out[n - 2].t + out[n - 1].t + '/', ws: false });
+    } else {
+      out.push(tk);
+    }
+  }
+  for (const tk of out) {
+    if (tk.ws) {
+      el.appendChild(document.createTextNode(tk.t));
+    } else {
+      const span = document.createElement('span');
+      span.className = 'fc-w';
+      span.style.cssText = 'white-space:nowrap;';
+      span.textContent = tk.t;
+      el.appendChild(span);
+    }
+  }
+}
+
 function fillText(el: HTMLElement, text: string): void {
-  if (!(HAS_ARABIC.test(text) && HAS_LATIN_OR_DIGIT.test(text))) {
+  if (!HAS_ARABIC.test(text)) {
+    fillLatin(el, text);
+    return;
+  }
+  if (!HAS_LATIN_OR_DIGIT.test(text)) {
     el.textContent = text;
     return;
   }
