@@ -1,0 +1,61 @@
+name: Release APK
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run build
+
+      - name: Siapkan proyek Android
+        run: |
+          if [ ! -d android ]; then npx cap add android; fi
+          npx cap sync android
+          # Android minimum 8 (API 26)
+          sed -i 's/minSdkVersion = .*/minSdkVersion = 26/' android/variables.gradle
+
+      - name: Bangun APK
+        id: build
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            ./gradlew assembleRelease \
+              -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.jks" \
+              -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+              -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+              -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+            cp app/build/outputs/apk/release/app-release.apk "../flashcard-${GITHUB_REF_NAME}.apk"
+            echo "note=APK bertanda tangan rilis." >> "$GITHUB_OUTPUT"
+          else
+            ./gradlew assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk "../flashcard-${GITHUB_REF_NAME}-debug.apk"
+            echo "note=APK debug (belum ada rahasia kunci rilis). Aman dipasang untuk uji, bukan untuk toko aplikasi." >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: flashcard-*.apk
+          body: ${{ steps.build.outputs.note }}
