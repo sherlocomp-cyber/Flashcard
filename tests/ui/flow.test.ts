@@ -1,131 +1,261 @@
-import 'fake-indexeddb/auto';
-import { describe, expect, it, vi } from 'vitest';
-import { buildAiPrompt } from '../../src/core/aiPrompt';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '../../src/ui/main';
+import type { Deck } from '../../src/store/decks';
 
-const VOCAB =
-  '| arab | arti | inggris |\n|---|---|---|\n| كِتَابٌ | buku | book |\n| مَدْرَسَةٌ | sekolah | school |\n| سَلَامٌ | salam | peace |';
-const UNKNOWN_COLUMNS = '| kata | makna |\n|---|---|\n| كتاب | buku |';
+// Kontrak antarmuka (Task 10): mount(root, deps?) mengembalikan { getDeck }.
+// Semua efek samping (berkas, papan klip, PDF, penyimpanan) masuk lewat `deps` supaya bisa diuji di jsdom.
+type Handle = { getDeck(): Deck };
+const mountApp = mount as unknown as (root: HTMLElement, deps?: Record<string, unknown>) => Handle;
+
+const TABLE = [
+  '| arab | arti | inggris |',
+  '|---|---|---|',
+  '| كتاب | buku | book |',
+  '| مدرسة | sekolah | school |',
+  '| قلم | pena | pen |',
+].join('\n');
+const UNKNOWN = '| kata | makna |\n|---|---|\n| a | b |';
 const PNG = 'data:image/png;base64,AAAA';
 
-function setup() {
-  const root = document.createElement('div');
-  document.body.appendChild(root);
-  const app = mount(root);
-  return { root, app };
+const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+
+function memoryStore() {
+  const m = new Map<string, Deck>();
+  return {
+    saveDeck: vi.fn(async (d: Deck) => {
+      m.set(d.id, d);
+    }),
+    loadDeck: vi.fn(async (id: string) => m.get(id)),
+    deleteDeck: vi.fn(async (id: string) => {
+      m.delete(id);
+    }),
+    listDecks: vi.fn(async () =>
+      [...m.values()].map((d) => ({ id: d.id, name: d.name, updatedAt: d.updatedAt })),
+    ),
+  };
 }
 
+function makeDeps(over: Record<string, unknown> = {}) {
+  return {
+    store: memoryStore(),
+    readImages: vi.fn(async () => [] as { name: string; dataUrl: string }[]),
+    readText: vi.fn(async () => ''),
+    saveFile: vi.fn(async () => undefined),
+    printBlob: vi.fn(async () => undefined),
+    writeClipboard: vi.fn(async () => undefined),
+    exportPdf: vi.fn(async (cards: unknown[]) => {
+      if (cards.length === 0) throw new Error('Tidak ada kartu untuk diekspor.');
+      return new Blob(['%PDF'], { type: 'application/pdf' });
+    }),
+    ...over,
+  };
+}
+
+function setup(over: Record<string, unknown> = {}) {
+  document.body.innerHTML = '<div id="root"></div>';
+  const root = document.getElementById('root') as HTMLElement;
+  const deps = makeDeps(over);
+  const app = mountApp(root, deps);
+  return { root, deps, app };
+}
+
+const $ = <T extends HTMLElement = HTMLElement>(root: ParentNode, sel: string): T => {
+  const el = root.querySelector<T>(sel);
+  if (!el) throw new Error(`Elemen tidak ditemukan: ${sel}`);
+  return el;
+};
+const $$ = (root: ParentNode, sel: string): HTMLElement[] => Array.from(root.querySelectorAll<HTMLElement>(sel));
+
 function paste(root: HTMLElement, text: string): void {
-  const box = root.querySelector<HTMLTextAreaElement>('#paste')!;
+  const box = $<HTMLTextAreaElement>(root, '#paste-input');
   box.value = text;
   box.dispatchEvent(new Event('input', { bubbles: true }));
 }
+function choose(root: HTMLElement, sel: string, value: string): void {
+  const el = $<HTMLSelectElement>(root, sel);
+  el.value = value;
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+}
+function setFiles(input: HTMLInputElement, files: File[]): void {
+  Object.defineProperty(input, 'files', { value: files, configurable: true });
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+const firstLine = (root: ParentNode): string => $(root, '.sheet .fc-card .fc-line').textContent ?? '';
+const frontValues = (root: ParentNode): string[] =>
+  $$(root, '.card-row .edit-front').map((e) => (e as HTMLInputElement).value);
 
-const count = (root: HTMLElement): string => root.querySelector('[data-role="count"]')?.textContent ?? '';
-const firstLine = (root: HTMLElement): string =>
-  root.querySelector('#preview .fc-card .fc-line')?.textContent ?? '';
+beforeEach(() => {
+  document.body.innerHTML = '';
+});
 
-describe('alur tempel sampai cetak', () => {
+describe('alur antarmuka', () => {
+  it('empty_start_shows_zero_cards_and_a_big_paste_box', () => {
+    const { root } = setup();
+    expect($(root, '#paste-input')).toBeTruthy();
+    expect($(root, '#deck-count').textContent).toBe('0 kartu');
+  });
+
   it('paste_builds_cards_without_extra_clicks', () => {
     const { root } = setup();
-    paste(root, VOCAB);
-    expect(count(root)).toContain('3 kartu');
-    expect(root.querySelectorAll('#preview .fc-card')).toHaveLength(3);
+    paste(root, TABLE);
+    expect($(root, '#deck-count').textContent).toBe('3 kartu');
+    expect($$(root, '.sheet .fc-card')).toHaveLength(3);
+    expect(root.querySelector('[data-step="map"]')).toBeNull();
   });
 
   it('mapping_step_shows_only_when_columns_unknown', () => {
     const { root } = setup();
-    paste(root, VOCAB);
-    expect(root.querySelector('#mapping')).toBeNull();
-    paste(root, UNKNOWN_COLUMNS);
-    expect(root.querySelector('#mapping')).not.toBeNull();
+    paste(root, TABLE);
+    expect(root.querySelector('[data-step="map"]')).toBeNull();
+    paste(root, UNKNOWN);
+    expect(root.querySelector('[data-step="map"]')).not.toBeNull();
+    paste(root, TABLE);
+    expect(root.querySelector('[data-step="map"]')).toBeNull();
   });
 
   it('theme_change_updates_preview', () => {
     const { root } = setup();
-    paste(root, VOCAB);
-    expect(root.querySelector('#preview .fc-card[data-theme="tosca"]')).not.toBeNull();
-    root.querySelector<HTMLButtonElement>('[data-theme-id="koral"]')!.click();
-    expect(root.querySelector('#preview .fc-card[data-theme="koral"]')).not.toBeNull();
-    expect(root.querySelector('#preview .fc-card[data-theme="tosca"]')).toBeNull();
+    paste(root, TABLE);
+    expect($(root, '.sheet .fc-card').getAttribute('data-theme')).toBe('tosca');
+    $(root, '[data-theme-id="koral"]').click();
+    expect($(root, '.sheet .fc-card').getAttribute('data-theme')).toBe('koral');
   });
 
   it('flip_toggle_swaps_preview_sides', () => {
     const { root } = setup();
-    paste(root, VOCAB);
-    expect(firstLine(root)).toBe('كِتَابٌ');
-    root.querySelector<HTMLInputElement>('#flip')!.click();
+    paste(root, TABLE);
+    expect(firstLine(root)).toBe('كتاب');
+    const flip = $<HTMLInputElement>(root, '#flip');
+    flip.checked = true;
+    flip.dispatchEvent(new Event('change', { bubbles: true }));
     expect(firstLine(root)).toBe('buku');
+    flip.checked = false;
+    flip.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(firstLine(root)).toBe('كتاب');
   });
 
-  it('unmatched_images_are_listed', () => {
-    const { root, app } = setup();
-    paste(root, VOCAB);
-    app.addImages([
-      { name: 'buku.png', dataUrl: PNG },
-      { name: 'tak-ada.png', dataUrl: PNG },
-    ]);
-    const listed = root.querySelector('#unmatched')?.textContent ?? '';
-    expect(listed).toContain('tak-ada.png');
-    expect(listed).not.toContain('buku.png');
-    expect(root.querySelector('#preview img')).not.toBeNull();
+  it('unmatched_images_are_listed', async () => {
+    const { root } = setup({
+      readImages: vi.fn(async () => [
+        { name: 'buku.png', dataUrl: PNG },
+        { name: 'zzz.png', dataUrl: PNG },
+      ]),
+    });
+    paste(root, TABLE);
+    setFiles($<HTMLInputElement>(root, '#image-input'), [new File(['x'], 'buku.png', { type: 'image/png' })]);
+    await tick();
+    expect($$(root, '.unmatched-list li').map((li) => li.textContent)).toEqual(['zzz.png']);
+    expect(root.querySelector('.sheet .fc-card img')).not.toBeNull();
   });
 
   it('editing_a_card_updates_the_deck', () => {
-    const { root } = setup();
-    paste(root, VOCAB);
-    const input = root.querySelector<HTMLInputElement>('.card-row[data-index="0"] .edit-front')!;
-    input.value = 'جَدِيدٌ';
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(firstLine(root)).toBe('جَدِيدٌ');
-  });
-
-  it('add_delete_reorder_cards_update_preview', () => {
-    const { root } = setup();
-    paste(root, VOCAB);
-    root.querySelector<HTMLButtonElement>('#card-add')!.click();
-    expect(count(root)).toContain('4 kartu');
-    root.querySelector<HTMLButtonElement>('.card-row[data-index="0"] .card-del')!.click();
-    expect(count(root)).toContain('3 kartu');
-    expect(firstLine(root)).toBe('مَدْرَسَةٌ');
-    root.querySelector<HTMLButtonElement>('.card-row[data-index="0"] .card-down')!.click();
-    expect(firstLine(root)).toBe('سَلَامٌ');
-  });
-
-  it('export_then_import_restores_deck', () => {
-    const a = setup();
-    paste(a.root, VOCAB);
-    a.root.querySelector<HTMLButtonElement>('[data-theme-id="koral"]')!.click();
-    const json = a.app.exportJson();
-
-    const b = setup();
-    expect(b.app.importJson(json)).toBe(true);
-    expect(count(b.root)).toContain('3 kartu');
-    expect(b.root.querySelector('#preview .fc-card[data-theme="koral"]')).not.toBeNull();
-  });
-
-  it('import_rejects_invalid_file_with_indonesian_message', () => {
     const { root, app } = setup();
-    expect(app.importJson('bukan json')).toBe(false);
-    expect(root.querySelector('#message')?.textContent ?? '').toContain('Berkas dek tidak valid');
+    paste(root, TABLE);
+    const input = $<HTMLInputElement>(root, '.card-row .edit-front');
+    input.value = 'قلم جديد';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(app.getDeck().cards[0].front.lines[0].text).toBe('قلم جديد');
+    expect(firstLine(root)).toBe('قلم جديد');
   });
 
-  it('pdf_buttons_are_disabled_until_cards_exist', () => {
+  it('add_card_updates_count_and_rows', () => {
     const { root } = setup();
-    const save = root.querySelector<HTMLButtonElement>('#save-pdf')!;
-    const print = root.querySelector<HTMLButtonElement>('#print')!;
-    expect(save.disabled).toBe(true);
-    expect(print.disabled).toBe(true);
-    paste(root, VOCAB);
-    expect(save.disabled).toBe(false);
-    expect(print.disabled).toBe(false);
+    paste(root, TABLE);
+    $(root, '#add-card').click();
+    expect($(root, '#deck-count').textContent).toBe('4 kartu');
+    expect($$(root, '.card-row')).toHaveLength(4);
   });
 
-  it('copy_prompt_button_copies_text', () => {
+  it('delete_card_updates_preview', () => {
     const { root } = setup();
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-    root.querySelector<HTMLButtonElement>('#copy-prompt')!.click();
-    expect(writeText).toHaveBeenCalledWith(buildAiPrompt());
+    paste(root, TABLE);
+    $(root, '.card-row .btn-delete').click();
+    expect($(root, '#deck-count').textContent).toBe('2 kartu');
+    expect(frontValues(root)).toEqual(['مدرسة', 'قلم']);
+    expect(firstLine(root)).toBe('مدرسة');
+  });
+
+  it('reorder_card_updates_preview', () => {
+    const { root } = setup();
+    paste(root, TABLE);
+    $(root, '.card-row .btn-down').click();
+    expect(frontValues(root)).toEqual(['مدرسة', 'كتاب', 'قلم']);
+    expect(firstLine(root)).toBe('مدرسة');
+  });
+
+  it('export_then_import_restores_deck', async () => {
+    const first = setup();
+    paste(first.root, TABLE);
+    $(first.root, '[data-theme-id="koral"]').click();
+    $(first.root, '#export-deck').click();
+    await tick();
+    const saveFile = first.deps.saveFile as ReturnType<typeof vi.fn>;
+    expect(saveFile).toHaveBeenCalledTimes(1);
+    const [name, text] = saveFile.mock.calls[0] as [string, string];
+    expect(name.endsWith('.json')).toBe(true);
+
+    const second = setup({ readText: vi.fn(async () => text) });
+    setFiles($<HTMLInputElement>(second.root, '#import-input'), [new File([text], name)]);
+    await tick();
+    expect(second.app.getDeck().cards).toHaveLength(3);
+    expect(second.app.getDeck().themeId).toBe('koral');
+    expect($(second.root, '#deck-count').textContent).toBe('3 kartu');
+  });
+
+  it('import_of_a_bad_file_shows_an_indonesian_error', async () => {
+    const { root } = setup({ readText: vi.fn(async () => 'bukan json') });
+    setFiles($<HTMLInputElement>(root, '#import-input'), [new File(['x'], 'rusak.json')]);
+    await tick();
+    expect($(root, '[role="alert"]').textContent).toContain('Berkas dek tidak valid');
+  });
+
+  it('copy_prompt_button_copies_text', async () => {
+    const { root, deps } = setup();
+    $(root, '#copy-prompt').click();
+    await tick();
+    const write = deps.writeClipboard as ReturnType<typeof vi.fn>;
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(String(write.mock.calls[0][0])).toContain('tabel');
+  });
+
+  it('pdf_button_exports_with_chosen_options', async () => {
+    const { root, deps } = setup();
+    paste(root, TABLE);
+    choose(root, '#per-page', '6');
+    choose(root, '#sides', 'front');
+    $(root, '#save-pdf').click();
+    await tick();
+    const exportPdf = deps.exportPdf as ReturnType<typeof vi.fn>;
+    expect(exportPdf).toHaveBeenCalledTimes(1);
+    const [cards, opts] = exportPdf.mock.calls[0] as [unknown[], Record<string, unknown>];
+    expect(cards).toHaveLength(3);
+    expect(opts).toMatchObject({ perPage: 6, sides: 'front', harakat: true, cutMarks: true });
+    const saveFile = deps.saveFile as ReturnType<typeof vi.fn>;
+    expect(saveFile).toHaveBeenCalledTimes(1);
+    expect(saveFile.mock.calls[0][0]).toBe('flashcard.pdf');
+  });
+
+  it('pdf_error_is_shown_in_indonesian', async () => {
+    const { root } = setup();
+    $(root, '#save-pdf').click();
+    await tick();
+    expect($(root, '[role="alert"]').textContent).toContain('Tidak ada kartu untuk diekspor.');
+  });
+
+  it('save_then_open_saved_deck', async () => {
+    const store = memoryStore();
+    const first = setup({ store });
+    paste(first.root, TABLE);
+    $(first.root, '#save-deck').click();
+    await tick();
+    expect(store.saveDeck).toHaveBeenCalledTimes(1);
+
+    const second = setup({ store });
+    await tick();
+    expect($$(second.root, '.saved-deck')).toHaveLength(1);
+    $(second.root, '.saved-deck .btn-open').click();
+    await tick();
+    expect(second.app.getDeck().cards).toHaveLength(3);
+    expect($(second.root, '#deck-count').textContent).toBe('3 kartu');
   });
 });
