@@ -7,6 +7,24 @@ const PATHS: Record<string, string> = {
   arch: '<path d="M4 22V10a8 8 0 0 1 16 0v12z"/>',
   heart: '<path d="M12 21s-8-5.2-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.8-8 11-8 11z"/>',
   sparkle: '<path d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z"/>',
+  // Khatam: bintang segi delapan.
+  star8:
+    '<path d="M12 2l2.4 4.2L19 5l-1.2 4.6L22 12l-4.2 2.4L19 19l-4.6-1.2L12 22l-2.4-4.2L5 19l1.2-4.6L2 12l4.2-2.4L5 5l4.6 1.2z"/>',
+  // Ubin empat lengkung (quatrefoil) khas mozaik.
+  tile:
+    '<circle cx="12" cy="7" r="4.5"/><circle cx="17" cy="12" r="4.5"/><circle cx="12" cy="17" r="4.5"/><circle cx="7" cy="12" r="4.5"/>',
+  // Bunga enam kelopak.
+  flower:
+    '<circle cx="12" cy="6.5" r="4"/><circle cx="17.2" cy="10.3" r="4"/><circle cx="15.2" cy="16.4" r="4"/><circle cx="8.8" cy="16.4" r="4"/><circle cx="6.8" cy="10.3" r="4"/><circle cx="12" cy="12" r="3.5"/>',
+  // Matahari: cakram dengan delapan sinar.
+  sun:
+    '<circle cx="12" cy="12" r="5.2"/><path d="M12 1l2 5h-4zM12 23l-2-5h4zM1 12l5-2v4zM23 12l-5 2v-4z"/><g transform="rotate(45 12 12)"><path d="M12 1l2 5h-4zM12 23l-2-5h4zM1 12l5-2v4zM23 12l-5 2v-4z"/></g>',
+  // Lampion (fanus).
+  lantern:
+    '<path d="M10 2h4v2h-4zM8 5h8l1.5 3c0 4-1.5 6-2.5 8h-6c-1-2-2.5-4-2.5-8zM9.5 17h5l-1 2.5h-3zM11 20h2v2h-2z"/>',
+  // Bulan sabit dengan bintang kecil.
+  crescent:
+    '<path d="M14 3a9 9 0 1 0 6 14.5A7.5 7.5 0 0 1 14 3z"/><path d="M19 4l.9 2 2.1.3-1.6 1.4.5 2.1L19 8.7l-1.9 1.1.5-2.1L16 6.3l2.1-.3z"/>',
 };
 
 /** SVG hiasan sudut berwarna `color`; ornamen tak dikenal memakai berlian. */
