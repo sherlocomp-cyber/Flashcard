@@ -1,9 +1,15 @@
+import type { Pattern } from './patterns';
+
 export interface Theme {
   id: string;
   name: string;
   color: string;
   tint: string;
   ink: string;
+  /** Warna kedua untuk pola pita; sama dengan `color` pada tema polos. */
+  accent: string;
+  /** Pola pita tipis di tepi atas dan bawah kartu ('none' = tanpa pita). */
+  pattern: Pattern;
   ornament: 'diamond' | 'star' | 'moon' | string;
   border: 'dotted' | 'double' | 'dashed' | 'solid';
   fallbackIcon: string;
@@ -40,9 +46,22 @@ function make(
   ornament: Theme['ornament'],
   border: Theme['border'],
   fallbackIcon: string,
+  pattern: Pattern = 'none',
+  accent?: string,
 ): Theme {
   const c = normalizeHex(color);
-  return { id, name, color: c, tint: tintOf(c), ink: inkOf(c), ornament, border, fallbackIcon };
+  return {
+    id,
+    name,
+    color: c,
+    tint: tintOf(c),
+    ink: inkOf(c),
+    accent: accent === undefined ? c : normalizeHex(accent),
+    pattern,
+    ornament,
+    border,
+    fallbackIcon,
+  };
 }
 
 export const THEMES: Theme[] = [
@@ -54,6 +73,13 @@ export const THEMES: Theme[] = [
   make('emas-klasik', 'Emas Klasik', '#c9971c', 'arch', 'double', 'mosque'),
   make('merah-muda', 'Merah Muda', '#ec6fa8', 'heart', 'dashed', 'house'),
   make('langit-malam', 'Langit Malam', '#2c3e8f', 'sparkle', 'solid', 'star'),
+  // Tema bermotif: pita pola di tepi atas dan bawah, tengah tetap putih.
+  make('zamrud-madinah', 'Zamrud Madinah', '#047857', 'star8', 'double', 'mosque', 'stars', '#d4a017'),
+  make('mozaik-biru', 'Mozaik Biru', '#1d4ed8', 'tile', 'solid', 'water', 'diamonds', '#38bdf8'),
+  make('pelangi-ceria', 'Pelangi Ceria', '#f97316', 'flower', 'dashed', 'star', 'dots', '#ec4899'),
+  make('lemon-segar', 'Lemon Segar', '#eab308', 'sun', 'dotted', 'tree', 'zigzag', '#16a34a'),
+  make('merah-delima', 'Merah Delima', '#be123c', 'lantern', 'double', 'book', 'scallop', '#fda4af'),
+  make('cokelat-hangat', 'Cokelat Hangat', '#92400e', 'crescent', 'solid', 'moon', 'arches', '#f59e0b'),
 ];
 
 /** Tema kustom dari satu warna pilihan pengguna. */
