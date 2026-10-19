@@ -19,6 +19,7 @@ import {
 } from '../store/decks';
 import { THEMES, customTheme, type Theme } from '../themes/themes';
 import { h, icon } from './dom';
+import { sheetScale } from './scale';
 
 /** Semua efek samping masuk lewat sini supaya alur bisa diuji tanpa peramban nyata. */
 export interface AppDeps {
@@ -54,7 +55,10 @@ const TYPE_LABEL: Record<CardType, string> = {
   material: 'Materi dan penjelasan',
 };
 const PER_PAGE: PerPage[] = [2, 4, 6, 8, 9];
-const A4_WIDTH_PX = (210 / 25.4) * 96;
+/** Bantalan kiri+kanan `.sheet-wrap` (0,75rem × 2) yang tidak tersedia untuk lembar. */
+const WRAP_PADDING_PX = 24;
+/** Ruang di layar lebar untuk kepala, alat, dan tombol cetak di sekitar lembar pratinjau. */
+const STAGE_CHROME_PX = 300;
 
 function defaultDeps(): AppDeps {
   return {
@@ -485,10 +489,15 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
   }
 
   function fitSheet(): void {
-    const w = sheetWrap.clientWidth;
-    if (w > 0) sheetWrap.style.setProperty('--s', String(Math.min(1, w / A4_WIDTH_PX)));
+    // Layar lebar: pratinjau menempel di kanan, jadi tinggi layar ikut membatasi supaya satu lembar utuh terlihat.
+    // Ponsel: satu kolom yang digulir, jadi hanya lebar yang membatasi.
+    const wide = typeof matchMedia === 'function' && matchMedia('(min-width: 64rem)').matches;
+    const availH = wide ? window.innerHeight - STAGE_CHROME_PX : 0;
+    const scale = sheetScale(sheetWrap.clientWidth - WRAP_PADDING_PX, availH);
+    if (scale !== null) sheetWrap.style.setProperty('--s', String(scale));
   }
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fitSheet).observe(sheetWrap);
+  window.addEventListener('resize', fitSheet);
 
   function rowFor(card: Card, i: number, total: number): HTMLElement {
     const front = card.front.lines[0];
