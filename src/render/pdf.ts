@@ -1,21 +1,9 @@
-import { toCanvas } from 'html-to-image';
 import { jsPDF } from 'jspdf';
-import { backPages, cutMarks as cutMarkLines, gridFor, paginate } from '../core/layout';
+import { toCanvas } from 'html-to-image';
+import { backPages, cutMarks, gridFor, paginate } from '../core/layout';
 import type { Card, Page, PerPage } from '../core/types';
 import type { Theme } from '../themes/themes';
 import { renderCardSide } from './cardView';
-
-/** Hasil rasterisasi satu sisi kartu. `release` wajib dipanggil agar memori kanvas bebas. */
-export interface Raster {
-  dataUrl: string;
-  release(): void;
-}
-
-/** Bagian yang bisa diganti (tes memalsukannya; bawaan memakai peramban nyata). */
-export interface PdfDeps {
-  rasterize(el: HTMLElement, widthMm: number, heightMm: number): Promise<Raster>;
-  nextFrame(): Promise<void>;
-}
 
 export interface PdfOptions {
   perPage: PerPage;
@@ -24,124 +12,113 @@ export interface PdfOptions {
   sides: 'front' | 'back' | 'both';
   cutMarks: boolean;
   onProgress?: (done: number, total: number) => void;
-  deps?: Partial<PdfDeps>;
 }
 
-const DPI = 300; // resolusi cetak
-const CSS_DPI = 96; // 1 px CSS
-const MM_PER_INCH = 25.4;
-const JPEG_QUALITY = 0.9;
+/** Hasil mengubah satu kartu menjadi gambar; `release` melepas kanvas sesudah gambar ditempel. */
+export interface Rasterized {
+  dataUrl: string;
+  release: () => void;
+}
+export type Rasterizer = (el: HTMLElement, pixelRatio: number) => Promise<Rasterized>;
 
-const mmToCssPx = (mm: number): number => (mm / MM_PER_INCH) * CSS_DPI;
+/** 300 dpi dibagi 96 dpi CSS. */
+const PIXEL_RATIO = 300 / 96;
 
-/** Rasterisasi lewat peramban: kartu dipasang di luar layar, difoto 300 dpi, lalu dilepas. */
-function makeDomRasterizer(): PdfDeps['rasterize'] {
-  let warmed = false;
-  return async (el, widthMm, heightMm) => {
-    const host = document.createElement('div');
-    host.style.cssText = 'position:fixed;left:-10000px;top:0;pointer-events:none;';
-    host.appendChild(el);
-    document.body.appendChild(host);
-    try {
-      if (!warmed) {
-        // Pastikan font Arab (Amiri) sudah termuat sebelum kartu pertama difoto.
+// Kartu dirender oleh peramban (huruf Arab bersambung dan harakat benar) lalu dijadikan gambar.
+const defaultRasterize: Rasterizer = async (el, pixelRatio) => {
+  const canvas = await toCanvas(el, { pixelRatio, backgroundColor: '#ffffff' });
+  return {
+    dataUrl: canvas.toDataURL('image/jpeg', 0.92),
+    release: () => {
+      canvas.width = 0;
+      canvas.height = 0;
+    },
+  };
+};
+
+// Beri antarmuka kesempatan menggambar ulang (bilah kemajuan) tanpa bergantung pada tab yang terlihat.
+const yieldToUi = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+async function waitForFonts(): Promise<void> {
+  const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+  if (!fonts) return;
+  try {
+    await Promise.all([fonts.load("400 40px 'Amiri'"), fonts.load("700 40px 'Amiri'")]);
+    await fonts.ready;
+  } catch {
+    // font gagal dimuat: lanjut dengan font cadangan, jangan menggagalkan ekspor
+  }
+}
+
+/** Urutan lembar. 'both' disisipkan depan lalu belakang per lembar fisik (urutan cetak dua sisi). */
+function sheetOrder(front: Page[], back: Page[], sides: PdfOptions['sides']): Page[] {
+  const pages: Page[] = [];
+  for (let i = 0; i < front.length; i++) {
+    if (sides !== 'back') pages.push(front[i]);
+    if (sides !== 'front') pages.push(back[i]);
+  }
+  return pages;
+}
+
+export async function exportPdf(
+  cards: Card[],
+  opts: PdfOptions,
+  deps: { rasterize?: Rasterizer } = {},
+): Promise<Blob> {
+  if (cards.length === 0) throw new Error('Belum ada kartu untuk dijadikan PDF.');
+  const rasterize = deps.rasterize ?? defaultRasterize;
+  const grid = gridFor(opts.perPage);
+  const front = paginate(cards, opts.perPage);
+  const pages = sheetOrder(front, backPages(front, opts.perPage), opts.sides);
+  const marks = opts.cutMarks ? cutMarks(opts.perPage) : [];
+
+  await waitForFonts();
+
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;left:-10000px;top:0;visibility:hidden;';
+  document.body.appendChild(host);
+  try {
+    for (let p = 0; p < pages.length; p++) {
+      const page = pages[p];
+      if (p > 0) doc.addPage('a4', 'portrait');
+      for (let s = 0; s < page.slots.length; s++) {
+        const card = page.slots[s];
+        if (!card) continue;
+        const col = s % grid.cols;
+        const row = Math.floor(s / grid.cols);
+        const el = renderCardSide(card, page.side === 'front' ? 'front' : 'back', opts.theme, {
+          harakat: opts.harakat,
+          widthMm: grid.cardW,
+          heightMm: grid.cardH,
+        });
+        host.appendChild(el);
+        let image: Rasterized | undefined;
         try {
-          await document.fonts.ready;
-        } catch {
-          /* peramban lama: lanjut */
+          image = await rasterize(el, PIXEL_RATIO);
+          doc.addImage(
+            image.dataUrl,
+            'JPEG',
+            grid.marginX + col * grid.cardW,
+            grid.marginY + row * grid.cardH,
+            grid.cardW,
+            grid.cardH,
+          );
+        } finally {
+          image?.release();
+          host.removeChild(el);
         }
       }
-      const options = {
-        pixelRatio: DPI / CSS_DPI,
-        width: mmToCssPx(widthMm),
-        height: mmToCssPx(heightMm),
-        backgroundColor: '#ffffff',
-      };
-      if (!warmed) {
-        // Foto pertama sering belum memuat font tertanam; buang hasilnya dan foto ulang.
-        const warm = await toCanvas(el, options);
-        warm.width = 0;
-        warm.height = 0;
-        warmed = true;
+      if (marks.length > 0) {
+        doc.setDrawColor(90);
+        doc.setLineWidth(0.2);
+        for (const m of marks) doc.line(m.x1, m.y1, m.x2, m.y2);
       }
-      const canvas = await toCanvas(el, options);
-      const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
-      return {
-        dataUrl,
-        release: () => {
-          canvas.width = 0;
-          canvas.height = 0;
-        },
-      };
-    } finally {
-      document.body.removeChild(host);
+      opts.onProgress?.(p + 1, pages.length);
+      await yieldToUi();
     }
-  };
-}
-
-/** Beri giliran ke antarmuka (satu frame, dengan batas waktu agar tab di latar tidak macet). */
-function defaultNextFrame(): Promise<void> {
-  return new Promise((resolve) => {
-    let done = false;
-    const finish = (): void => {
-      if (!done) {
-        done = true;
-        resolve();
-      }
-    };
-    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(finish);
-    setTimeout(finish, 50);
-  });
-}
-
-/** Urutan halaman cetak. 'both' = depan lalu belakang tiap lembar (urutan cetak bolak-balik). */
-function buildPages(cards: Card[], perPage: PerPage, sides: PdfOptions['sides']): Page[] {
-  const front = paginate(cards, perPage);
-  const back = backPages(front, perPage);
-  if (sides === 'front') return front;
-  if (sides === 'back') return back;
-  return front.flatMap((f, i) => [f, back[i]]);
-}
-
-/** Ekspor kartu menjadi PDF A4. Kartu dirender peramban (Arab bersambung benar), difoto per slot. */
-export async function exportPdf(cards: Card[], opts: PdfOptions): Promise<Blob> {
-  if (cards.length === 0) throw new Error('Tidak ada kartu untuk diekspor.');
-  const rasterize = opts.deps?.rasterize ?? makeDomRasterizer();
-  const nextFrame = opts.deps?.nextFrame ?? defaultNextFrame;
-
-  const g = gridFor(opts.perPage);
-  const pages = buildPages(cards, opts.perPage, opts.sides);
-  const marks = opts.cutMarks ? cutMarkLines(opts.perPage) : [];
-  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: false });
-
-  for (let p = 0; p < pages.length; p++) {
-    if (p > 0) doc.addPage();
-    const page = pages[p];
-    for (let i = 0; i < page.slots.length; i++) {
-      const card = page.slots[i];
-      if (!card) continue;
-      const x = g.marginX + (i % g.cols) * g.cardW;
-      const y = g.marginY + Math.floor(i / g.cols) * g.cardH;
-      const el = renderCardSide(card, page.side, opts.theme, {
-        harakat: opts.harakat,
-        widthMm: g.cardW,
-        heightMm: g.cardH,
-      });
-      const raster = await rasterize(el, g.cardW, g.cardH);
-      try {
-        doc.addImage(raster.dataUrl, 'JPEG', x, y, g.cardW, g.cardH, undefined, 'FAST');
-      } finally {
-        raster.release();
-      }
-    }
-    if (marks.length > 0) {
-      doc.setDrawColor(0, 0, 0);
-      doc.setLineWidth(0.2);
-      for (const m of marks) doc.line(m.x1, m.y1, m.x2, m.y2);
-    }
-    opts.onProgress?.(p + 1, pages.length);
-    await nextFrame();
+    return new Blob([doc.output('arraybuffer')], { type: 'application/pdf' });
+  } finally {
+    document.body.removeChild(host);
   }
-
-  return new Blob([doc.output('arraybuffer')], { type: 'application/pdf' });
 }
