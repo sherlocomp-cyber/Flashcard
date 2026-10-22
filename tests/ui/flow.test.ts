@@ -175,6 +175,17 @@ describe('alur antarmuka', () => {
     expect(firstLine(root)).toBe('مدرسة');
   });
 
+  it('delete_can_be_undone_and_restores_the_original_position', () => {
+    const { root } = setup();
+    paste(root, TABLE);
+    $(root, '.card-row .btn-delete').click();
+    expect($(root, '#deck-count').textContent).toBe('2 kartu');
+    $(root, '.btn-undo').click();
+    expect($(root, '#deck-count').textContent).toBe('3 kartu');
+    expect(frontValues(root)).toEqual(['كتاب', 'مدرسة', 'قلم']);
+    expect(root.querySelector('.btn-undo')).toBeNull();
+  });
+
   it('reorder_card_updates_preview', () => {
     const { root } = setup();
     paste(root, TABLE);
@@ -233,6 +244,18 @@ describe('alur antarmuka', () => {
     const saveFile = deps.saveFile as ReturnType<typeof vi.fn>;
     expect(saveFile).toHaveBeenCalledTimes(1);
     expect(saveFile.mock.calls[0][0]).toBe('flashcard.pdf');
+  });
+
+  it('pdf_notice_mentions_flipping_only_when_both_sides_are_printed', async () => {
+    const { root } = setup();
+    paste(root, TABLE);
+    $(root, '#save-pdf').click();
+    await tick();
+    expect($(root, '.msg-ok').textContent).toContain('dua sisi');
+    choose(root, '#sides', 'front');
+    $(root, '#save-pdf').click();
+    await tick();
+    expect($(root, '.msg-ok').textContent).not.toContain('dua sisi');
   });
 
   it('pdf_error_is_shown_in_indonesian', async () => {
