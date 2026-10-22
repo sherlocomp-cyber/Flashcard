@@ -80,6 +80,15 @@ export const THEMES: Theme[] = [
   make('lemon-segar', 'Lemon Segar', '#eab308', 'sun', 'dotted', 'tree', 'zigzag', '#16a34a'),
   make('merah-delima', 'Merah Delima', '#be123c', 'lantern', 'double', 'book', 'scallop', '#fda4af'),
   make('cokelat-hangat', 'Cokelat Hangat', '#92400e', 'crescent', 'solid', 'moon', 'arches', '#f59e0b'),
+  // Tema estetik: warna lembut berdebu (muted) dipadukan dengan satu aksen hangat atau emas.
+  make('sage-lembut', 'Sage Lembut', '#5f8a6a', 'leaf', 'double', 'tree', 'scallop', '#d8c394'),
+  make('lavender-senja', 'Lavender Senja', '#8b73c4', 'sparkle', 'dotted', 'moon', 'dots', '#f2b5d4'),
+  make('mawar-pastel', 'Mawar Pastel', '#c4647f', 'heart', 'double', 'house', 'scallop', '#f4c7a9'),
+  make('dongker-emas', 'Dongker Emas', '#1e3a6e', 'star8', 'double', 'mosque', 'stars', '#d4a73a'),
+  make('terakota', 'Terakota', '#bf5b38', 'tile', 'solid', 'house', 'arches', '#e8b86a'),
+  make('mocha-latte', 'Mocha Latte', '#85654f', 'crescent', 'dotted', 'book', 'diamonds', '#d8b799'),
+  make('hijau-malam', 'Hijau Malam', '#115e59', 'lantern', 'double', 'moon', 'zigzag', '#f0c75e'),
+  make('pesisir-pagi', 'Pesisir Pagi', '#3590a8', 'wave', 'dashed', 'water', 'dots', '#f4a58a'),
 ];
 
 /** Tema kustom dari satu warna pilihan pengguna. */
