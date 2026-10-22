@@ -145,6 +145,8 @@ interface State {
   map: ColumnMap;
   needsMap: boolean;
   type: CardType;
+  /** Benar bila jenis kartu dipilih sendiri (atau datang dari dek yang dibuka); jenis otomatis tidak menimpanya. */
+  typeTouched: boolean;
   flip: boolean;
   harakat: boolean;
   themeId: string;
@@ -169,6 +171,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     map: {},
     needsMap: false,
     type: 'vocab',
+    typeTouched: false,
     flip: false,
     harakat: true,
     themeId: THEMES[0].id,
@@ -250,7 +253,11 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     const b = h(
       'button',
       { type: 'button', class: 'theme-chip', 'data-theme-id': t.id, 'aria-pressed': 'false', onClick: () => onTheme(t.id) },
-      h('span', { class: 'swatch', style: `--c:${t.color};--t:${t.tint}`, 'aria-hidden': 'true' }),
+      h('span', {
+        class: t.accent !== t.color ? 'swatch swatch-accent' : 'swatch',
+        style: `--c:${t.color};--t:${t.tint};--a:${t.accent}`,
+        'aria-hidden': 'true',
+      }),
       h('span', { class: 'theme-name' }, t.name),
     );
     themeButtons.set(t.id, b);
@@ -598,7 +605,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
           h('span', { class: 'saved-name' }, d.name),
           h('span', { class: 'muted' }, new Date(d.updatedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })),
           h('button', { type: 'button', class: 'btn btn-open', onClick: () => void onOpen(d.id) }, icon('folder'), 'Buka'),
-          h('button', { type: 'button', class: 'btn btn-icon btn-remove-saved', 'aria-label': `Hapus dek ${d.name}`, onClick: () => void onRemoveSaved(d.id) }, icon('trash')),
+          h('button', { type: 'button', class: 'btn btn-icon btn-remove-saved', 'aria-label': `Hapus dek ${d.name}`, onClick: () => void onRemoveSaved(d.id, d.name) }, icon('trash')),
         ),
       ),
     );
@@ -644,7 +651,9 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
       s.needsMap = table.headers.some((_, i) => !used.includes(i));
       const onlyMaterial = (s.map.judul !== undefined || s.map.penjelasan !== undefined) &&
         s.map.arab === undefined && s.map.indonesia === undefined && s.map.inggris === undefined;
-      if (onlyMaterial) s.type = 'material';
+      // Jenis kartu mengikuti isi tabel selama pengguna belum memilihnya sendiri. Dulu jenis "materi" terbawa
+      // ke tabel kosakata berikutnya sehingga kartunya salah bentuk.
+      if (!s.typeTouched) s.type = onlyMaterial ? 'material' : 'vocab';
     }
     s.pageIndex = 0;
     rebuild();
@@ -658,6 +667,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
 
   function onType(t: CardType): void {
     s.type = t;
+    s.typeTouched = true;
     rebuild();
     renderControls();
     renderRows();
@@ -724,9 +734,35 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
   }
 
   function deleteCard(id: string): void {
+    const index = s.cards.findIndex((c) => c.id === id);
+    if (index < 0) return;
+    const removed = s.cards[index];
     s.cards = s.cards.filter((c) => c.id !== id);
     renderRows();
     renderPreview();
+    showUndo(removed, index);
+  }
+
+  /** Penghapusan kartu mudah terjadi tanpa sengaja di layar sentuh, jadi beri jalan kembali. */
+  function showUndo(card: Card, index: number): void {
+    clearMessages();
+    const undo = h(
+      'button',
+      {
+        type: 'button',
+        class: 'btn btn-quiet btn-undo',
+        onClick: () => {
+          const next = [...s.cards];
+          next.splice(Math.min(index, next.length), 0, card);
+          s.cards = next;
+          clearMessages();
+          renderRows();
+          renderPreview();
+        },
+      },
+      'Urungkan',
+    );
+    messages.append(h('p', { class: 'msg msg-ok', role: 'status' }, 'Kartu dihapus.', undo));
   }
 
   function onAdd(): void {
@@ -811,7 +847,12 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     if (!blob) return;
     try {
       await deps.saveFile('flashcard.pdf', blob, 'application/pdf');
-      showNotice('PDF siap. Cetak dua sisi dengan balik di sisi panjang kertas.');
+      // Petunjuk balik kertas hanya relevan bila kedua sisi dicetak.
+      showNotice(
+        s.sides === 'both'
+          ? 'PDF siap. Cetak dua sisi dengan balik di sisi panjang kertas.'
+          : 'PDF siap disimpan.',
+      );
     } catch (e) {
       showError(message(e));
     }
@@ -852,6 +893,8 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     s.themeId = d.themeId;
     s.perPage = d.perPage;
     s.type = d.type;
+    // Jenis dari dek yang dibuka adalah pilihan yang disengaja; tempelan berikutnya tidak boleh menimpanya.
+    s.typeTouched = true;
     s.flip = d.flip;
     s.harakat = d.harakat;
     s.table = null;
@@ -860,6 +903,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     s.images = [];
     s.unmatched = [];
     s.pageIndex = 0;
+    s.previewSide = 'front';
     pasteBox.value = '';
     renderAll();
   }
@@ -887,7 +931,11 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     }
   }
 
-  async function onRemoveSaved(id: string): Promise<void> {
+  async function onRemoveSaved(id: string, name: string): Promise<void> {
+    // Hanya batal bila pengguna menjawab "Batal" secara eksplisit; lingkungan tanpa dialog tidak memblokir.
+    if (typeof window.confirm === 'function' && window.confirm(`Hapus dek "${name}" dari perangkat ini? Tindakan ini tidak bisa dibatalkan.`) === false) {
+      return;
+    }
     try {
       await deps.store.deleteDeck(id);
       await refreshSaved();
