@@ -25,6 +25,25 @@ const PATHS: Record<string, string> = {
   // Bulan sabit dengan bintang kecil.
   crescent:
     '<path d="M14 3a9 9 0 1 0 6 14.5A7.5 7.5 0 0 1 14 3z"/><path d="M19 4l.9 2 2.1.3-1.6 1.4.5 2.1L19 8.7l-1.9 1.1.5-2.1L16 6.3l2.1-.3z"/>',
+  // Teratai: tiga kelopak di atas alas.
+  lotus:
+    '<path d="M12 3c3 3 4 6 0 11-4-5-3-8 0-11z"/><path d="M4 8c4 0 7 2 8 6-4 1-7-1-8-6z"/><path d="M20 8c-4 0-7 2-8 6 4 1 7-1 8-6z"/><path d="M5 17h14v2H5z"/>',
+  // Awan lembut.
+  cloud: '<path d="M7 19a4.5 4.5 0 0 1-.7-8.9A6 6 0 0 1 18 9.8 4.6 4.6 0 0 1 17.5 19z"/>',
+  // Pita simpul.
+  bow: '<path d="M12 12L3 6v12zM12 12l9-6v12z"/><circle cx="12" cy="12" r="2.6"/>',
+  // Mahkota.
+  crown: '<path d="M3 18V7l5 5 4-7 4 7 5-5v11zM3 20h18v2H3z"/>',
+  // Vas tanah liat.
+  vase:
+    '<path d="M9 2h6v3c0 1-1 2-1 3 3 1 5 4 5 8 0 3-2 6-7 6s-7-3-7-6c0-4 2-7 5-8 0-1-1-2-1-3z"/>',
+  // Cangkir dengan gagang.
+  cup:
+    '<path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 9h2a2.5 2.5 0 0 1 0 5h-2v-1.5h2a1 1 0 0 0 0-2h-2z"/>',
+  // Pohon cemara.
+  pine: '<path d="M12 2l6 9h-3l4 6h-5v5h-4v-5H5l4-6H6z"/>',
+  // Kerang: kipas dengan alas.
+  shell: '<path d="M12 21L4 12c0-5 3.5-9 8-9s8 4 8 9z"/>',
 };
 
 /** SVG hiasan sudut berwarna `color`; ornamen tak dikenal memakai berlian. */
