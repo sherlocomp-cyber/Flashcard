@@ -3,6 +3,8 @@ import { isMostlyArabic } from '../core/columns';
 import { fitFontSize } from '../core/fit';
 import type { Card, Line } from '../core/types';
 import { iconFor, keywordIcon } from '../themes/icons';
+import { layoutSpec } from '../themes/layouts';
+import type { LayoutSpec } from '../themes/layouts';
 import { ornamentSvg } from '../themes/ornaments';
 import { patternBand } from '../themes/patterns';
 import type { Theme } from '../themes/themes';
@@ -95,17 +97,26 @@ function fillText(el: HTMLElement, text: string): void {
   }
 }
 
-function buildLine(line: Line, harakat: boolean): HTMLElement {
+function buildLine(line: Line, harakat: boolean, spec: LayoutSpec | null): HTMLElement {
   const el = document.createElement('div');
   const arabic = HAS_ARABIC.test(line.text);
+  const main = line.role === 'main';
   el.className = `fc-line fc-${line.role}`;
   el.setAttribute('lang', line.lang);
   el.setAttribute('dir', dirFor(line.text));
   fillText(el, harakat ? line.text : line.text.replace(HARAKAT, ''));
+
+  let family = arabic ? ARABIC_FONT : LATIN_FONT;
+  if (spec && main && !arabic && spec.mainFamily) family = spec.mainFamily;
+  const weight = main && !arabic ? (spec ? spec.mainWeight : 700) : 400;
+  const color = spec && main ? `color:${spec.mainColor};` : '';
+  const extra = spec ? spec.lineCss + (main ? spec.mainCss : '') : '';
   el.style.cssText =
-    `font-family:${arabic ? ARABIC_FONT : LATIN_FONT};` +
+    `font-family:${family};` +
     `line-height:${arabic ? 1.9 : 1.25};` +
-    `font-weight:${line.role === 'main' && !arabic ? 700 : 400};` +
+    `font-weight:${weight};` +
+    color +
+    extra +
     LINE_WRAP_CSS;
   return el;
 }
@@ -140,18 +151,53 @@ function band(theme: Theme, pos: 'top' | 'bottom'): HTMLElement | null {
   return el;
 }
 
+/**
+ * Penanda kategori kecil untuk gaya non-klasik: tab di tepi bawah (permainan) atau
+ * lambang di sudut kanan bawah (pop). Null bila gaya tidak memakainya.
+ */
+function categoryMark(theme: Theme, spec: LayoutSpec): HTMLElement | null {
+  if (spec.mark === 'none') return null;
+  const el = document.createElement('div');
+  el.className = `fc-mark fc-mark-${spec.mark}`;
+  el.setAttribute('aria-hidden', 'true');
+  const glyph = document.createElement('span');
+  glyph.innerHTML = ornamentSvg(theme.ornament, spec.markColor);
+  if (spec.mark === 'tab') {
+    el.style.cssText =
+      'position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:16mm;height:4.6mm;' +
+      `background:${theme.tint};border-radius:2mm 2mm 0 0;display:flex;align-items:center;justify-content:center;`;
+    glyph.style.cssText = 'display:block;width:3.2mm;height:3.2mm;';
+  } else {
+    el.style.cssText = 'position:absolute;right:3.5mm;bottom:3mm;width:5mm;height:5mm;opacity:0.9;';
+    glyph.style.cssText = 'display:block;width:5mm;height:5mm;';
+  }
+  el.appendChild(glyph);
+  return el;
+}
+
+/** Kotak gambar untuk gaya non-klasik (bentuk, latar, dan warna ikon ditentukan gaya). */
+interface VisualBox {
+  w: number;
+  h: number;
+  spec: LayoutSpec;
+}
+
 function buildVisual(
   image: string | undefined,
   iconKey: string,
   theme: Theme,
   diameterMm: number,
+  box?: VisualBox,
 ): HTMLElement {
   const circle = document.createElement('div');
   circle.className = 'fc-visual';
-  circle.style.cssText =
-    `width:${diameterMm}mm;height:${diameterMm}mm;border-radius:50%;flex:none;` +
-    `border:0.6mm solid ${theme.color};background:${theme.tint};overflow:hidden;` +
-    'display:flex;align-items:center;justify-content:center;box-sizing:border-box;';
+  circle.style.cssText = box
+    ? `width:${box.w}mm;height:${box.h}mm;border-radius:${box.spec.visualRadius(box.w, box.h)};flex:none;` +
+      `border:${box.spec.visualBorder};background:${box.spec.visualBg};overflow:hidden;` +
+      'display:flex;align-items:center;justify-content:center;box-sizing:border-box;'
+    : `width:${diameterMm}mm;height:${diameterMm}mm;border-radius:50%;flex:none;` +
+      `border:0.6mm solid ${theme.color};background:${theme.tint};overflow:hidden;` +
+      'display:flex;align-items:center;justify-content:center;box-sizing:border-box;';
   if (image) {
     const img = document.createElement('img');
     img.src = image;
@@ -164,11 +210,13 @@ function buildVisual(
     span.className = 'fc-icon';
     span.setAttribute('data-icon', icon.name);
     span.innerHTML = icon.svg;
-    span.style.cssText = `width:60%;height:60%;color:${theme.color};display:block;`;
+    span.style.cssText = `width:60%;height:60%;color:${box ? box.spec.iconColor : theme.color};display:block;`;
     circle.appendChild(span);
   }
   return circle;
 }
+
+const round1 = (n: number): number => Math.round(n * 10) / 10;
 
 /** Render satu sisi kartu menjadi elemen DOM berukuran milimeter (siap dipasang atau diubah jadi gambar). */
 export function renderCardSide(
@@ -180,30 +228,43 @@ export function renderCardSide(
   const data = card[side];
   const w = opts.widthMm ?? 90;
   const h = opts.heightMm ?? 65;
+  // null untuk tema klasik: jalur render lama tidak berubah.
+  const spec = layoutSpec(theme);
 
   const root = document.createElement('div');
   root.className = 'fc-card';
   root.setAttribute('data-theme', theme.id);
   root.setAttribute('data-type', card.type);
   root.setAttribute('data-side', side);
-  root.style.cssText =
-    `position:relative;box-sizing:border-box;width:${w}mm;height:${h}mm;background:#ffffff;` +
-    `border:1.4mm ${theme.border} ${theme.color};border-radius:4mm;overflow:hidden;color:${theme.ink};`;
-  for (const pos of ['tl', 'tr', 'bl', 'br'] as const) root.appendChild(corner(theme, pos));
-  for (const pos of ['top', 'bottom'] as const) {
-    const b = band(theme, pos);
-    if (b) root.appendChild(b);
+  if (spec) {
+    root.setAttribute('data-layout', spec.layout);
+    root.style.cssText =
+      `position:relative;box-sizing:border-box;width:${w}mm;height:${h}mm;overflow:hidden;` +
+      `color:${spec.textColor};${spec.rootCss}`;
+  } else {
+    root.style.cssText =
+      `position:relative;box-sizing:border-box;width:${w}mm;height:${h}mm;background:#ffffff;` +
+      `border:1.4mm ${theme.border} ${theme.color};border-radius:4mm;overflow:hidden;color:${theme.ink};`;
+    for (const pos of ['tl', 'tr', 'bl', 'br'] as const) root.appendChild(corner(theme, pos));
+    for (const pos of ['top', 'bottom'] as const) {
+      const b = band(theme, pos);
+      if (b) root.appendChild(b);
+    }
   }
 
   const inner = document.createElement('div');
   inner.className = 'fc-inner';
-  inner.style.cssText =
-    'position:absolute;top:8mm;bottom:8mm;left:7mm;right:7mm;display:flex;' +
-    'flex-direction:column;align-items:center;overflow:hidden;text-align:center;';
+  inner.style.cssText = spec
+    ? `position:absolute;top:${spec.padTop}mm;bottom:${spec.padBottom}mm;left:${spec.padSide}mm;` +
+      `right:${spec.padSide}mm;display:flex;flex-direction:column;align-items:center;overflow:hidden;` +
+      `text-align:${spec.start ? 'start' : 'center'};`
+    : 'position:absolute;top:8mm;bottom:8mm;left:7mm;right:7mm;display:flex;' +
+      'flex-direction:column;align-items:center;overflow:hidden;text-align:center;';
   const stack = document.createElement('div');
   stack.className = 'fc-stack';
   stack.style.cssText =
-    'margin:auto 0;width:100%;display:flex;flex-direction:column;align-items:center;gap:2mm;';
+    'margin:auto 0;width:100%;display:flex;flex-direction:column;align-items:center;' +
+    `gap:${spec ? spec.gap : 2}mm;`;
 
   // Visual hanya tampil bila ada gambar unggahan, atau kata cocok dengan ikon kata kunci,
   // atau sisi ini tidak punya teks sama sekali (kartu gambar tebak kata: jangan dibiarkan kosong,
@@ -212,15 +273,32 @@ export function renderCardSide(
   const hasKeywordIcon = iconKey !== undefined && keywordIcon(iconKey) !== null;
   const onlyVisual = data.lines.length === 0;
   const hasVisual = Boolean(data.image) || hasKeywordIcon || (iconKey !== undefined && onlyVisual);
+  let visualEl: HTMLElement | null = null;
   if (hasVisual) {
-    const diameter = onlyVisual ? Math.min(w - 20, h - 20) : Math.round(h * 0.3);
-    stack.appendChild(buildVisual(data.image, iconKey ?? '', theme, Math.max(12, diameter)));
+    if (spec) {
+      // Kotak gambar mengikuti ukuran kartu: lebar penuh area isi; tinggi sebagian area isi
+      // (seluruhnya bila sisi ini hanya gambar). Bingkai dihitung kira-kira 2 mm per sisi.
+      const bw = 2;
+      const vw = Math.max(12, w - 2 * bw - 2 * spec.padSide);
+      const innerH = h - 2 * bw - spec.padTop - spec.padBottom;
+      const vh = Math.max(12, onlyVisual ? innerH : innerH * spec.visualShare);
+      visualEl = buildVisual(data.image, iconKey ?? '', theme, 0, { w: round1(vw), h: round1(vh), spec });
+    } else {
+      const diameter = onlyVisual ? Math.min(w - 20, h - 20) : Math.round(h * 0.3);
+      visualEl = buildVisual(data.image, iconKey ?? '', theme, Math.max(12, diameter));
+    }
   }
 
-  const lineEls = data.lines.map((l) => buildLine(l, opts.harakat));
+  if (visualEl && (!spec || spec.visualFirst)) stack.appendChild(visualEl);
+  const lineEls = data.lines.map((l) => buildLine(l, opts.harakat, spec));
   for (const el of lineEls) stack.appendChild(el);
+  if (visualEl && spec && !spec.visualFirst) stack.appendChild(visualEl);
   inner.appendChild(stack);
   root.appendChild(inner);
+  if (spec) {
+    const m = categoryMark(theme, spec);
+    if (m) root.appendChild(m);
+  }
 
   if (lineEls.length > 0) {
     const apply = (px: number): void => {
