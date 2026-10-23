@@ -1,5 +1,11 @@
 import type { Pattern } from './patterns';
 
+/**
+ * Gaya tata letak kartu. 'classic' = bingkai + ornamen sudut + pita pola (tema lama).
+ * Gaya lain mengubah susunan kartu: urutan gambar dan teks, bentuk gambar, tipografi.
+ */
+export type CardLayout = 'classic' | 'game' | 'minimal' | 'pop' | 'rimba' | 'pill';
+
 export interface Theme {
   id: string;
   name: string;
@@ -13,6 +19,8 @@ export interface Theme {
   ornament: 'diamond' | 'star' | 'moon' | string;
   border: 'dotted' | 'double' | 'dashed' | 'solid';
   fallbackIcon: string;
+  /** Gaya tata letak; kosong = 'classic'. */
+  layout?: CardLayout;
 }
 
 const DEFAULT_COLOR = '#14b8a6';
@@ -48,9 +56,10 @@ function make(
   fallbackIcon: string,
   pattern: Pattern = 'none',
   accent?: string,
+  layout?: CardLayout,
 ): Theme {
   const c = normalizeHex(color);
-  return {
+  const theme: Theme = {
     id,
     name,
     color: c,
@@ -62,6 +71,8 @@ function make(
     border,
     fallbackIcon,
   };
+  if (layout !== undefined) theme.layout = layout;
+  return theme;
 }
 
 export const THEMES: Theme[] = [
@@ -90,6 +101,26 @@ export const THEMES: Theme[] = [
   make('mocha-latte', 'Mocha Latte', '#85654f', 'cup', 'dotted', 'book', 'diamonds', '#d8b799'),
   make('hijau-malam', 'Hijau Malam', '#115e59', 'pine', 'double', 'moon', 'zigzag', '#f0c75e'),
   make('pesisir-pagi', 'Pesisir Pagi', '#3590a8', 'shell', 'dashed', 'water', 'dots', '#f4a58a'),
+  // Gaya kartu baru (tata letak berbeda, bukan hanya warna). Ornamen dipakai sebagai penanda
+  // kategori kecil di kartu; warna dan ornamen tetap unik per tema.
+  // Permainan: bingkai tebal berwarna, judul tegas di atas, gambar persegi membulat di bawah.
+  make('permainan-merah', 'Permainan Merah', '#ef4444', 'bolt', 'solid', 'star', 'none', undefined, 'game'),
+  make('permainan-biru', 'Permainan Biru', '#3b82f6', 'bulb', 'solid', 'book', 'none', undefined, 'game'),
+  make('permainan-hijau', 'Permainan Hijau', '#65a30d', 'flag', 'solid', 'tree', 'none', undefined, 'game'),
+  // Pop: latar warna penuh, huruf sans tebal rata awal, gambar besar di bawah judul.
+  make('pop-tosca', 'Pop Tosca', '#4fb3b0', 'rocket', 'solid', 'star', 'none', undefined, 'pop'),
+  make('pop-oranye', 'Pop Oranye', '#e5533d', 'paw', 'solid', 'house', 'none', undefined, 'pop'),
+  make('pop-kuning', 'Pop Kuning', '#f2bf3a', 'bubble', 'solid', 'pen', 'none', undefined, 'pop'),
+  make('pop-anggur', 'Pop Anggur', '#7a2145', 'hex', 'solid', 'moon', 'none', undefined, 'pop'),
+  // Minimal: putih bersih, judul berkait, gambar dalam lengkung (arch) berlatar lembut.
+  make('minimal-pasir', 'Minimal Pasir', '#a8977f', 'drop', 'solid', 'house', 'none', undefined, 'minimal'),
+  make('minimal-kelabu', 'Minimal Kelabu', '#78716c', 'ring', 'solid', 'book', 'none', undefined, 'minimal'),
+  // Rimba: gambar besar dengan satu sudut sangat bulat, label tulisan tangan di bawah.
+  make('rimba-madu', 'Rimba Madu', '#e8a317', 'triangle', 'solid', 'tree', 'none', undefined, 'rimba'),
+  make('rimba-hutan', 'Rimba Hutan', '#2a8f7e', 'fish', 'solid', 'water', 'none', undefined, 'rimba'),
+  // Pil: panel gambar berlatar lembut, kata dalam kapsul di bawahnya.
+  make('pantai', 'Pantai', '#4ba3c3', 'anchor', 'solid', 'water', 'none', undefined, 'pill'),
+  make('padang', 'Padang', '#6aa84f', 'sprout', 'solid', 'tree', 'none', undefined, 'pill'),
 ];
 
 /** Tema kustom dari satu warna pilihan pengguna. */
