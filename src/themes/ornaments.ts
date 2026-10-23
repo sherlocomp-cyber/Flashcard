@@ -44,6 +44,39 @@ const PATHS: Record<string, string> = {
   pine: '<path d="M12 2l6 9h-3l4 6h-5v5h-4v-5H5l4-6H6z"/>',
   // Kerang: kipas dengan alas.
   shell: '<path d="M12 21L4 12c0-5 3.5-9 8-9s8 4 8 9z"/>',
+  // Penanda kategori untuk gaya kartu baru (permainan, pop, minimal, rimba, pil).
+  // Petir.
+  bolt: '<path d="M13 2L4 14h6l-1 8 9-12h-6z"/>',
+  // Bola lampu.
+  bulb:
+    '<path d="M12 2a7 7 0 0 0-4 12.7V18h8v-3.3A7 7 0 0 0 12 2zM9 19h6v2H9zM10 22h4v1h-4z"/>',
+  // Bendera.
+  flag: '<path d="M5 2h2v20H5zM8 3h12l-3.5 5 3.5 5H8z"/>',
+  // Roket.
+  rocket:
+    '<path d="M12 2c4 3 6 7 5 12l-3 3h-4l-3-3c-1-5 1-9 5-12z"/><path d="M6 15l-3 5 5-2zM18 15l3 5-5-2z"/>',
+  // Telapak kaki hewan.
+  paw:
+    '<circle cx="6" cy="10" r="2.4"/><circle cx="10" cy="6" r="2.4"/><circle cx="14" cy="6" r="2.4"/><circle cx="18" cy="10" r="2.4"/><path d="M12 11c-3.5 0-6 3.5-6 6 0 2 1.5 3 3 3 1.2 0 2-.5 3-.5s1.8.5 3 .5c1.5 0 3-1 3-3 0-2.5-2.5-6-6-6z"/>',
+  // Balon percakapan.
+  bubble:
+    '<path d="M4 4h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H10l-5 4v-4H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/>',
+  // Segi enam.
+  hex: '<path d="M12 2l9 5v10l-9 5-9-5V7z"/>',
+  // Tetes air.
+  drop: '<path d="M12 2c3 4 7 8 7 13a7 7 0 0 1-14 0c0-5 4-9 7-13z"/>',
+  // Cincin.
+  ring:
+    '<path fill-rule="evenodd" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10z"/>',
+  // Ikan.
+  fish: '<path d="M2 12c4-6 10-7 14-4l6-4v16l-6-4c-4 3-10 2-14-4z"/>',
+  // Segitiga.
+  triangle: '<path d="M12 3l10 18H2z"/>',
+  // Tunas.
+  sprout: '<path d="M11 21V12C6 12 3 9 3 4c5 0 8 3 8 7V9c0-4 3-7 8-7 0 5-3 8-8 8v11z"/>',
+  // Jangkar.
+  anchor:
+    '<path d="M11 2h2v3.2A2.5 2.5 0 0 1 12 10a2.5 2.5 0 0 1-1-4.8zM11 10h2v9.5c3-.5 5-2.5 5.5-5.5H21c-.5 5-4.5 8-9 8s-8.5-3-9-8h2.5c.5 3 2.5 5 5.5 5.5z"/>',
 };
 
 /** SVG hiasan sudut berwarna `color`; ornamen tak dikenal memakai berlian. */
