@@ -17,6 +17,19 @@ function opts(over: Partial<PdfOptions> = {}): PdfOptions {
   return { perPage: 4, theme: THEMES[0], harakat: true, sides: 'both', cutMarks: false, ...over };
 }
 
+describe('exportPdf: tempat render kartu', () => {
+  it('cards_are_not_rendered_inside_a_visibility_hidden_host', async () => {
+    const seen: string[] = [];
+    const rasterize: Rasterizer = async (el) => {
+      seen.push(el.parentElement?.style.visibility ?? 'tanpa-induk');
+      return { dataUrl: JPEG, release: () => undefined };
+    };
+    await exportPdf(makeCards(2), opts({ sides: 'front' }), { rasterize });
+    expect(seen.length).toBe(2);
+    for (const v of seen) expect(v).not.toBe('hidden');
+  });
+});
+
 function fakeRasterizer() {
   const state = { live: 0, maxLive: 0, calls: 0, seen: [] as string[] };
   const rasterize: Rasterizer = async (el) => {

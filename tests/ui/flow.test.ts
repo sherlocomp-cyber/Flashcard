@@ -258,11 +258,103 @@ describe('alur antarmuka', () => {
     expect($(root, '.msg-ok').textContent).not.toContain('dua sisi');
   });
 
-  it('pdf_error_is_shown_in_indonesian', async () => {
+  it('pdf_buttons_are_disabled_with_a_hint_until_there_are_cards', () => {
     const { root } = setup();
+    expect($<HTMLButtonElement>(root, '#save-pdf').disabled).toBe(true);
+    expect($<HTMLButtonElement>(root, '#print').disabled).toBe(true);
+    expect($(root, '#progress').textContent).toContain('Tempel tabel dulu');
+    paste(root, TABLE);
+    expect($<HTMLButtonElement>(root, '#save-pdf').disabled).toBe(false);
+    expect($<HTMLButtonElement>(root, '#print').disabled).toBe(false);
+    expect($(root, '#progress').textContent).toBe('');
+  });
+
+  it('pdf_error_in_our_own_words_is_shown_as_is', async () => {
+    const exportPdf = vi.fn(async () => {
+      throw new Error('Tidak ada kartu untuk diekspor.');
+    });
+    const { root } = setup({ exportPdf });
+    paste(root, TABLE);
     $(root, '#save-pdf').click();
     await tick();
     expect($(root, '[role="alert"]').textContent).toContain('Tidak ada kartu untuk diekspor.');
+  });
+
+  it('technical_errors_are_replaced_by_a_plain_sentence_with_a_way_out', async () => {
+    const exportPdf = vi.fn(async () => {
+      throw new Error('TypeError: Failed to execute drawImage on CanvasRenderingContext2D');
+    });
+    const { root } = setup({ exportPdf });
+    paste(root, TABLE);
+    $(root, '#save-pdf').click();
+    await tick();
+    const text = $(root, '[role="alert"]').textContent ?? '';
+    expect(text).toContain('PDF belum bisa dibuat.');
+    expect(text).toContain('muat ulang halaman');
+    expect(text).not.toContain('drawImage');
+  });
+
+  it('messages_can_be_closed', async () => {
+    const { root } = setup();
+    $(root, '#copy-prompt').click();
+    await tick();
+    expect($(root, '.msg-ok')).toBeTruthy();
+    $(root, '.btn-close').click();
+    expect(root.querySelector('.msg')).toBeNull();
+  });
+
+  it('cut_marks_show_in_the_preview_only_when_switched_on', () => {
+    const { root } = setup();
+    paste(root, TABLE);
+    expect($$(root, '.sheet .cut-mark').length).toBeGreaterThan(0);
+    const box = $<HTMLInputElement>(root, '#cut-marks');
+    box.checked = false;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    expect($$(root, '.sheet .cut-mark')).toHaveLength(0);
+  });
+
+  it('themes_are_grouped_by_style_and_shown_as_real_card_thumbnails', () => {
+    const { root } = setup();
+    expect($$(root, '.theme-group-title').length).toBeGreaterThanOrEqual(5);
+    const chips = $$(root, '.theme-chip[data-theme-id]');
+    expect(chips.length).toBeGreaterThanOrEqual(30);
+    for (const chip of chips) expect(chip.querySelector('.theme-thumb .fc-card')).not.toBeNull();
+  });
+
+  it('mini_preview_follows_the_first_card_and_hides_when_empty', () => {
+    const { root } = setup();
+    expect($(root, '.mini-preview').hidden).toBe(true);
+    paste(root, TABLE);
+    expect($(root, '.mini-preview').hidden).toBe(false);
+    expect($(root, '.mini-preview .fc-card')).toBeTruthy();
+  });
+
+  it('radio_groups_move_with_the_arrow_keys', () => {
+    const { root } = setup();
+    const first = $<HTMLButtonElement>(root, '.seg-btn[data-type="vocab"]');
+    first.focus();
+    first.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    expect($(root, '.seg-btn[data-type="picture"]').getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('opening_a_saved_deck_asks_before_replacing_cards_in_progress', async () => {
+    const store = memoryStore();
+    const first = setup({ store });
+    paste(first.root, TABLE);
+    $(first.root, '#save-deck').click();
+    await tick();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    paste(first.root, '| arab | arti |\n|---|---|\n| ب | b |');
+    expect(frontValues(first.root)).toEqual(['ب']);
+    $(first.root, '.btn-open').click();
+    await tick();
+    expect(confirm).toHaveBeenCalled();
+    expect(frontValues(first.root)).toEqual(['ب']);
+    confirm.mockReturnValue(true);
+    $(first.root, '.btn-open').click();
+    await tick();
+    expect(frontValues(first.root)).toHaveLength(3);
+    confirm.mockRestore();
   });
 
   it('save_then_open_saved_deck', async () => {

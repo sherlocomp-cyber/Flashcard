@@ -79,9 +79,9 @@ export function contrastOn(bg: string): string {
   return white >= dark ? WHITE : DARK;
 }
 
-const SERIF = "'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif";
-const HEAVY_SANS = "'Arial Black', 'Helvetica Neue', Arial, system-ui, sans-serif";
-const HAND = "'Segoe Print', 'Bradley Hand', 'Chalkboard SE', 'Comic Sans MS', cursive";
+const SERIF = "'Amiri', 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif";
+const HEAVY_SANS = "'Nunito', 'Arial Black', 'Helvetica Neue', Arial, system-ui, sans-serif";
+const HAND = "'Caveat', 'Segoe Print', 'Bradley Hand', 'Chalkboard SE', 'Comic Sans MS', cursive";
 
 export function layoutSpec(theme: Theme): LayoutSpec | null {
   const layout = theme.layout ?? 'classic';

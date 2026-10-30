@@ -23,12 +23,17 @@ const HARAKAT = /[\u064B-\u065F\u0670]/g;
 const HAS_ARABIC = /\p{Script=Arabic}/u;
 const HAS_LATIN_OR_DIGIT = /[A-Za-z\u00C0-\u024F0-9]/;
 const ARABIC_FONT = "'Amiri', 'Noto Naskh Arabic', 'Traditional Arabic', serif";
-const LATIN_FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+const LATIN_FONT = "'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 
 /** Batas atas ukuran huruf utama (px CSS) supaya kata pendek tidak tampil raksasa di samping kata panjang. */
 const MAX_PX_LATIN = 44;
 const MAX_PX_ARABIC = 60;
 const MIN_PX = 12;
+/** Huruf utama ikut membesar pada kartu besar supaya terbaca dari setengah meter; ukuran kecil tetap seperti semula. */
+const maxMainPx = (arabic: boolean, heightMm: number): number =>
+  arabic ? Math.max(MAX_PX_ARABIC, Math.round(heightMm * 0.9)) : Math.max(MAX_PX_LATIN, Math.round(heightMm * 0.5));
+/** Baris pendukung tidak boleh lebih kecil dari ini (px CSS) agar tetap terbaca di kertas. */
+const MIN_SUB_PX = 14;
 
 /**
  * Kata tidak pernah dipecah di tengah: kata yang terlalu panjang dibiarkan meluap
@@ -136,7 +141,7 @@ function corner(theme: Theme, pos: 'tl' | 'tr' | 'bl' | 'br'): HTMLElement {
 
 /**
  * Pita pola tipis di tepi atas atau bawah, di antara hiasan sudut. Tengah kartu tidak disentuh
- * (hemat tinta, teks tetap di atas putih). Mengembalikan null untuk tema tanpa pola.
+ * (teks tetap di atas putih agar terbaca). Mengembalikan null untuk tema tanpa pola.
  */
 function band(theme: Theme, pos: 'top' | 'bottom'): HTMLElement | null {
   const image = patternBand(theme.pattern, theme.color, theme.accent);
@@ -303,7 +308,7 @@ export function renderCardSide(
   if (lineEls.length > 0) {
     const apply = (px: number): void => {
       lineEls.forEach((el) => {
-        el.style.fontSize = (el.classList.contains('fc-main') ? px : Math.max(11, Math.round(px * 0.5))) + 'px';
+        el.style.fontSize = (el.classList.contains('fc-main') ? px : Math.max(MIN_SUB_PX, Math.round(px * 0.5))) + 'px';
       });
     };
     // Luapan: tinggi ATAU lebar. Karena kata tidak dipecah, satu kata yang kepanjangan
@@ -320,7 +325,7 @@ export function renderCardSide(
     host.style.cssText = 'position:fixed;left:-10000px;top:0;visibility:hidden;';
     host.appendChild(root);
     document.body.appendChild(host);
-    const maxPx = HAS_ARABIC.test(data.lines[0].text) ? MAX_PX_ARABIC : MAX_PX_LATIN;
+    const maxPx = maxMainPx(HAS_ARABIC.test(data.lines[0].text), h);
     const fit = fitFontSize(
       (px) => {
         apply(px);

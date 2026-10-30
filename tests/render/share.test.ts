@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { shareOrSave, shareOrSavePdf } from '../../src/render/share';
+import { blobToBase64, shareOrSave, shareOrSavePdf } from '../../src/render/share';
 
 function fakeDeps(native: boolean) {
   return {
@@ -46,5 +46,11 @@ describe('shareOrSave', () => {
     expect(blob.type).toBe('application/json');
     expect(blob.size).toBe(7);
     expect(deps.download.mock.calls[0][1]).toBe('dek.json');
+  });
+});
+
+describe('blobToBase64', () => {
+  it('has_no_data_url_prefix', async () => {
+    expect(await blobToBase64(new Blob(['hi']))).toBe('aGk=');
   });
 });

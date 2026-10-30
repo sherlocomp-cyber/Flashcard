@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto';
+import { createStore, set } from 'idb-keyval';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   deleteDeck,
@@ -82,6 +83,21 @@ describe('deck storage', () => {
   });
 });
 
+describe('daftar dek ringan', () => {
+  it('legacy_deck_without_a_summary_is_still_listed_and_gets_one', async () => {
+    const d = deck('lama', 1234);
+    await set('deck:lama', d, createStore('flashcard', 'decks'));
+    expect(await listDecks()).toEqual([{ id: 'lama', name: 'Dek lama', updatedAt: 1234 }]);
+    expect(await listDecks()).toHaveLength(1);
+  });
+
+  it('deleting_a_deck_also_removes_its_summary', async () => {
+    await saveDeck(deck('a', 1000));
+    await deleteDeck('a');
+    expect(await listDecks()).toEqual([]);
+  });
+});
+
 describe('deck export and import', () => {
   it('export_import_roundtrips_including_image_data', async () => {
     const img = 'data:image/png;base64,' + 'iVBORw0KGgo'.repeat(5000);
@@ -94,6 +110,36 @@ describe('deck export and import', () => {
   it('import_rejects_invalid_json_with_clear_error', () => {
     expect(() => importDeckJson('bukan json {')).toThrow(/Berkas dek tidak valid/);
     expect(() => importDeckJson('')).toThrow(/Berkas dek tidak valid/);
+  });
+
+  it('import_rejects_images_that_are_not_embedded_data_urls', () => {
+    const bad = JSON.parse(exportDeckJson(deck('x', 1, [card('x-1', 'data:image/png;base64,AAAA')])));
+    bad.deck.cards[0].front.image = 'https://contoh.example/pelacak.png';
+    expect(() => importDeckJson(JSON.stringify(bad))).toThrow(/gambar tertanam/);
+    bad.deck.cards[0].front.image = 'javascript:alert(1)';
+    expect(() => importDeckJson(JSON.stringify(bad))).toThrow(/Berkas dek tidak valid/);
+  });
+
+  it('import_rejects_a_file_from_a_newer_app_version', () => {
+    const newer = JSON.parse(exportDeckJson(deck('x', 1)));
+    newer.version = 99;
+    expect(() => importDeckJson(JSON.stringify(newer))).toThrow(/versi aplikasi yang lebih baru/);
+  });
+
+  it('import_rejects_lines_without_text_or_with_unknown_language', () => {
+    const noText = JSON.parse(exportDeckJson(deck('x', 1)));
+    delete noText.deck.cards[0].front.lines[0].text;
+    expect(() => importDeckJson(JSON.stringify(noText))).toThrow(/Berkas dek tidak valid/);
+    const badLang = JSON.parse(exportDeckJson(deck('x', 1)));
+    badLang.deck.cards[0].front.lines[0].lang = 'zz';
+    expect(() => importDeckJson(JSON.stringify(badLang))).toThrow(/bahasa/);
+  });
+
+  it('import_rejects_duplicate_card_ids_and_oversized_decks', () => {
+    const dup = JSON.parse(exportDeckJson(deck('x', 1, [card('sama'), card('sama')])));
+    expect(() => importDeckJson(JSON.stringify(dup))).toThrow(/nomor yang sama/);
+    const many = Array.from({ length: 1001 }, (_, i) => card(`k${i}`));
+    expect(() => importDeckJson(exportDeckJson(deck('x', 1, many)))).toThrow(/terlalu banyak kartu/);
   });
 
   it('import_rejects_wrong_shape_with_clear_error', () => {

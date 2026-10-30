@@ -1,4 +1,4 @@
-/** Pola pita tepi kartu. Tengah kartu tetap putih (hemat tinta); pola hanya di pita tipis atas dan bawah. */
+/** Pola pita tepi kartu. Tengah kartu tetap putih supaya teks terbaca; pola hanya di pita tipis atas dan bawah. */
 export const PATTERNS = ['stars', 'diamonds', 'dots', 'zigzag', 'scallop', 'arches'] as const;
 export type DrawnPattern = (typeof PATTERNS)[number];
 export type Pattern = 'none' | DrawnPattern;
