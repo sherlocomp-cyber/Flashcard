@@ -1,9 +1,21 @@
 # HANDOFF: aplikasi flashcard siap print (bahasa Arab)
 
-Terakhir diperbarui: 2026-10-23 (sesi alat githubku: gaya kartu baru; status lain masih seperti setelah insiden 2026-10-20, lihat bawah)
+Terakhir diperbarui: 2026-10-30 (perbaikan hasil kritik kode dan UI/UX; BELUM dijalankan di CI, lihat bagian pertama)
 
 ## Proyek
 Aplikasi web (GitHub Pages) dan APK Android untuk membuat flashcard siap cetak A4 dari tabel yang ditempel. Pemilik adalah guru bahasa Arab. Keputusan: `docs/superpowers/specs/2026-10-18-flashcard-design.md`. Rencana 12 tugas: `docs/superpowers/plans/2026-10-18-flashcard-app.md`. Baca keduanya dulu.
+
+## Perubahan 2026-10-30: perbaikan hasil kritik (BELUM diverifikasi CI maupun mata)
+Dikerjakan di cabang terpisah lewat PR supaya CI memeriksa dulu. Sandbox tidak bisa `npm install` (registry ditolak kebijakan proxy), jadi Vitest dan build TIDAK dijalankan. Yang terbukti hanya: `tsc --noEmit` bersih (selain modul pihak ketiga yang belum terpasang) dan validasi impor dek (`importDeckJson`) lewat skrip Node dengan stub.
+- "Hemat tinta" dihapus dari klaim (README, PRODUCT, komentar kode). Tema Pop/Permainan boleh memakai warna penuh tanpa peringatan.
+- PDF: host render tidak lagi `visibility:hidden` (dugaan penyebab kartu kosong); CSS font dihitung sekali per ekspor; JPEG 0,88; kartu pertama diperiksa tidak putih polos (`pdf.ts`). `verify-pdf.yml` kini gagal bila halaman PDF hampir putih. PNG artefak tetap perlu DILIHAT mata.
+- Impor dek (`decks.ts`): versi dicek; tiap baris divalidasi; gambar hanya `data:image/...` (alamat luar ditolak); batas 1000 kartu, 12 baris, ukuran gambar; id kartu ganda ditolak. Daftar dek memakai ringkasan `meta:` terpisah (tidak memuat gambar); dek lama dibuatkan ringkasan saat pertama dibaca. `navigator.storage.persist()` diminta saat menyimpan.
+- UI (`app.ts`, `app.css`): pesan melayang di bawah layar dan bisa ditutup; Cetak/Simpan PDF nonaktif saat 0 kartu (dengan petunjuk); tema dikelompokkan per gaya dengan miniatur kartu nyata; kartu contoh menempel di atas pilihan tema pada ponsel; tanda potong tampil di pratinjau; peringatan kartu terlalu panjang dihitung untuk seluruh set sebelum ekspor; konfirmasi sebelum menimpa kartu (buka/impor/ganti jenis atau kolom setelah disunting); simpan otomatis "Draf otomatis" (1,5 detik setelah perubahan, hanya penyimpanan bawaan); galat teknis diganti kalimat guru; istilah "Dek" menjadi "Set kartu" di antarmuka; target sentuh 44 px; navigasi panah pada grup radio; label dan `lang` pada kolom.
+- Kartu (`cardView.ts`): huruf utama ikut membesar pada kartu besar (Arab 0,9 x tinggi mm, Latin 0,5 x tinggi mm, batas bawah lama tetap); baris pendukung minimum 14 px. Font Nunito (400/700/800/900) dan Caveat 700 (subset Latin) ditanam lewat `@fontsource`; judul serif minimal memakai Amiri. PERLU DICEK: dependensi baru `@fontsource/nunito` dan `@fontsource/caveat` (jalur `latin-*.css`) belum pernah di-install; bila build gagal, periksa nama berkas di `src/ui/fonts.css`.
+- CI: `npm ci` bila `package-lock.json` ada (kalau tidak, `npm install`); Node 22; `release.yml` mengisi versionName/versionCode dari tag.
+- Dihapus: `HANDOFF-main.md`, `src/ui/share.ts` (mati), `tests/scale.test.ts` dan `tests/share.test.ts` (duplikat; kasus uniknya dipindah).
+- Tes baru atau diubah: `tests/ui/flow.test.ts` (tombol nonaktif saat kosong, galat teknis vs galat sendiri, tutup pesan, tanda potong, kelompok tema, kartu contoh, panah papan ketik, konfirmasi buka dek), `tests/store/decks.test.ts` (validasi impor, ringkasan), `tests/render/cardViewSize.test.ts`, `tests/render/pdf.test.ts`.
+Belum dikerjakan: `package-lock.json` (butuh `npm install` di komputer dengan internet, lalu commit); kartu hanya baris pertama yang bisa disunting; PDF 200 kartu pada Android belum diukur (`blobToBase64` di `share.ts` masih membaca seluruh berkas sekaligus); tanda potong 5 sampai 9 mm dari tepi; jspdf masih 2.x (jalankan `npm audit`); ikon PWA hanya SVG.
 
 ## Perubahan 2026-10-23: gaya kartu baru (BELUM diverifikasi CI maupun mata)
 Pemilik mengirim 6 gambar referensi dan meminta tema serupa. Referensi itu berbeda pada TATA LETAK, bukan hanya warna, jadi ditambah konsep `layout` pada `Theme` (opsional; kosong = `classic`, jalur render lama tidak berubah):
@@ -17,7 +29,7 @@ Catatan jujur:
 - Tes dan build TIDAK dijalankan (sandbox tidak bisa). Tunggu CI; bila merah, baca langkah yang gagal, kemungkinan di `tests/render/layouts.test.ts` atau tipe di `cardView.ts`.
 - Belum dilihat di layar atau kertas: ukuran gambar (porsi tinggi 0,6 sampai 0,66 area isi), kepadatan teks pada 9 kartu per lembar, dan tampilan pemilih tema (jumlah tema bertambah dari 22 menjadi 35; kode UI pemilih tema belum dibaca dan tidak diubah).
 - Nomor kartu di pojok (referensi game) dan garis hias di label rimba belum dibuat.
-- Gaya pop memakai latar warna penuh, boros tinta dibanding tema lain; tema klasik tetap pilihan hemat tinta.
+- Gaya pop memakai latar warna penuh (sengaja; hemat tinta bukan tujuan lagi).
 - Font judul memakai huruf sistem (Georgia, Arial Black, Segoe Print, dan cadangannya); tampilan bisa berbeda antarperangkat. Font tertanam belum ditambahkan.
 
 ## INSIDEN 2026-10-20 (baca dulu)

@@ -6,20 +6,25 @@ export interface PrintDeps extends ShareDeps {
 
 /** Cetak lewat iframe tersembunyi. Hanya jalan di peramban; WebView Android tidak bisa mencetak iframe. */
 function printInFrame(blob: Blob): Promise<void> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob);
     const frame = document.createElement('iframe');
     frame.src = url;
     frame.className = 'print-frame';
     frame.setAttribute('aria-hidden', 'true');
+    const cleanup = (): void => {
+      frame.remove();
+      URL.revokeObjectURL(url);
+    };
     frame.addEventListener('load', () => {
       frame.contentWindow?.focus();
       frame.contentWindow?.print();
-      setTimeout(() => {
-        frame.remove();
-        URL.revokeObjectURL(url);
-      }, 60_000);
+      setTimeout(cleanup, 60_000);
       resolve();
+    });
+    frame.addEventListener('error', () => {
+      cleanup();
+      reject(new Error('Peramban tidak bisa membuka PDF untuk dicetak.'));
     });
     document.body.appendChild(frame);
   });

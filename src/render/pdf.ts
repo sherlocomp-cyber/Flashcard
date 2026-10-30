@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { toCanvas } from 'html-to-image';
+import { getFontEmbedCSS, toCanvas } from 'html-to-image';
 import { backPages, cutMarks, gridFor, paginate } from '../core/layout';
 import type { Card, Page, PerPage } from '../core/types';
 import type { Theme } from '../themes/themes';
@@ -24,17 +24,47 @@ export type Rasterizer = (el: HTMLElement, pixelRatio: number) => Promise<Raster
 /** 300 dpi dibagi 96 dpi CSS. */
 const PIXEL_RATIO = 300 / 96;
 
+/** Kanvas yang seluruhnya putih berarti kartu gagal tergambar (mis. elemen tersembunyi). */
+function isBlank(canvas: HTMLCanvasElement): boolean {
+  const probe = document.createElement('canvas');
+  probe.width = 48;
+  probe.height = 48;
+  const ctx = probe.getContext('2d');
+  if (!ctx) return false;
+  ctx.drawImage(canvas, 0, 0, 48, 48);
+  const px = ctx.getImageData(0, 0, 48, 48).data;
+  for (let i = 0; i < px.length; i += 4) {
+    if (px[i] < 250 || px[i + 1] < 250 || px[i + 2] < 250) return false;
+  }
+  return true;
+}
+
 // Kartu dirender oleh peramban (huruf Arab bersambung dan harakat benar) lalu dijadikan gambar.
-const defaultRasterize: Rasterizer = async (el, pixelRatio) => {
-  const canvas = await toCanvas(el, { pixelRatio, backgroundColor: '#ffffff' });
-  return {
-    dataUrl: canvas.toDataURL('image/jpeg', 0.92),
-    release: () => {
-      canvas.width = 0;
-      canvas.height = 0;
-    },
+// CSS font dihitung sekali per ekspor, bukan sekali per kartu (200 kartu = 200 kali menyematkan font).
+function makeDefaultRasterize(): Rasterizer {
+  let fontCss: Promise<string> | undefined;
+  let checked = false;
+  return async (el, pixelRatio) => {
+    fontCss ??= getFontEmbedCSS(el).catch(() => '');
+    const fontEmbedCSS = await fontCss;
+    const canvas = await toCanvas(el, { pixelRatio, backgroundColor: '#ffffff', fontEmbedCSS });
+    if (!checked) {
+      checked = true;
+      if (isBlank(canvas)) {
+        canvas.width = 0;
+        canvas.height = 0;
+        throw new Error('Kartu tampil kosong saat dijadikan PDF. Muat ulang halaman lalu coba lagi.');
+      }
+    }
+    return {
+      dataUrl: canvas.toDataURL('image/jpeg', 0.88),
+      release: () => {
+        canvas.width = 0;
+        canvas.height = 0;
+      },
+    };
   };
-};
+}
 
 // Beri antarmuka kesempatan menggambar ulang (bilah kemajuan) tanpa bergantung pada tab yang terlihat.
 const yieldToUi = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
@@ -43,7 +73,15 @@ async function waitForFonts(): Promise<void> {
   const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
   if (!fonts) return;
   try {
-    await Promise.all([fonts.load("400 40px 'Amiri'"), fonts.load("700 40px 'Amiri'")]);
+    await Promise.all([
+      fonts.load("400 40px 'Amiri'"),
+      fonts.load("700 40px 'Amiri'"),
+      fonts.load("400 40px 'Nunito'"),
+      fonts.load("700 40px 'Nunito'"),
+      fonts.load("800 40px 'Nunito'"),
+      fonts.load("900 40px 'Nunito'"),
+      fonts.load("700 40px 'Caveat'"),
+    ]);
     await fonts.ready;
   } catch {
     // font gagal dimuat: lanjut dengan font cadangan, jangan menggagalkan ekspor
@@ -66,7 +104,7 @@ export async function exportPdf(
   deps: { rasterize?: Rasterizer } = {},
 ): Promise<Blob> {
   if (cards.length === 0) throw new Error('Belum ada kartu untuk dijadikan PDF.');
-  const rasterize = deps.rasterize ?? defaultRasterize;
+  const rasterize = deps.rasterize ?? makeDefaultRasterize();
   const grid = gridFor(opts.perPage);
   const front = paginate(cards, opts.perPage);
   const pages = sheetOrder(front, backPages(front, opts.perPage), opts.sides);
@@ -76,7 +114,9 @@ export async function exportPdf(
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
   const host = document.createElement('div');
-  host.style.cssText = 'position:fixed;left:-10000px;top:0;visibility:hidden;';
+  // Jangan pakai visibility:hidden: html-to-image menyalin gaya terhitung ke klon, sehingga kartu bisa
+  // tergambar kosong. Opacity tidak diwariskan ke klon, jadi kartu tetap tergambar penuh.
+  host.style.cssText = 'position:fixed;left:0;top:0;opacity:0;pointer-events:none;z-index:-1;';
   document.body.appendChild(host);
   try {
     for (let p = 0; p < pages.length; p++) {

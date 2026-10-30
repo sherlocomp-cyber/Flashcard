@@ -67,7 +67,30 @@ p { margin: 0; }
 .topbar h1 { font: 700 1.75rem/1.1 'Amiri', 'Noto Naskh Arabic', serif; letter-spacing: 0; }
 .topbar p { color: #b9e4dd; font-size: 0.9375rem; }
 
-#messages { padding: 0 1rem; max-width: 80rem; margin: 0 auto; }
+/* Pesan melayang di bawah layar: terlihat di dekat tombol yang baru ditekan, di ponsel maupun laptop. */
+#messages {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  padding: 0 1rem;
+  display: grid;
+  justify-items: center;
+  pointer-events: none;
+}
+#messages:empty { display: none; }
+#messages .msg {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: min(100%, 34rem);
+  margin: 0;
+  box-shadow: 0 6px 24px rgba(16, 49, 45, 0.28);
+}
+.btn-close { min-width: 2.75rem; padding: 0; font-size: 1.5rem; line-height: 1; text-decoration: none !important; }
 
 .layout {
   display: grid;
@@ -147,11 +170,11 @@ textarea:disabled, input:disabled { background: var(--ground); color: var(--mute
 }
 .btn:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent); }
 .btn:active:not(:disabled) { background: #c2e8e1; }
-.btn:disabled { color: #7d948f; background: var(--ground); cursor: not-allowed; }
+.btn:disabled { color: #566e69; background: var(--ground); cursor: not-allowed; }
 .btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn-primary:hover:not(:disabled) { background: var(--accent-strong); border-color: var(--accent-strong); }
-.btn-primary:disabled { background: #7aa9a3; color: #fff; }
+.btn-primary:disabled { background: #4a7a74; border-color: #4a7a74; color: #fff; }
 .btn-quiet { border-color: transparent; background: transparent; color: var(--accent-strong); padding-inline: 0.5rem; }
 .btn-icon { min-width: 2.75rem; padding: 0.5rem; }
 .btn-delete:hover:not(:disabled) { background: var(--err-bg); border-color: var(--danger); color: var(--danger); }
@@ -164,7 +187,7 @@ label.btn { position: relative; }
 .seg { display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.25rem; background: #e3ece9; border-radius: var(--radius); }
 .seg-btn {
   flex: 1 1 auto;
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   padding: 0.4rem 0.75rem;
   font: inherit;
   font-size: 0.875rem;
@@ -179,16 +202,21 @@ label.btn { position: relative; }
 }
 .seg-btn:hover { color: var(--ink); }
 .seg-btn[aria-checked='true'] { background: var(--surface); color: var(--accent-strong); box-shadow: 0 1px 2px rgba(16, 49, 45, 0.18); }
-.seg-small .seg-btn { min-height: 2.25rem; }
+.seg-small .seg-btn { min-height: 2.75rem; }
 
-/* Daftar tema cukup panjang; kolom lebih rapat supaya tidak terlalu banyak menggulir di ponsel. */
-.themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.75rem, 1fr)); gap: 0.5rem; }
+/* Tema dikelompokkan per gaya dan tampil sebagai miniatur kartu nyata. */
+.theme-groups { display: grid; gap: 0.25rem; }
+.theme-group-title { margin: 1rem 0 0.4rem; font-size: 0.875rem; color: var(--muted); }
+.theme-group-title:first-child { margin-top: 0.25rem; }
+.themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.25rem, 1fr)); gap: 0.5rem; }
 .theme-chip {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.6rem;
+  justify-content: flex-start;
+  gap: 0.4rem;
   min-height: 2.75rem;
-  padding: 0.35rem 0.6rem;
+  padding: 0.5rem 0.4rem;
   font: inherit;
   font-size: 0.875rem;
   font-weight: 600;
@@ -198,27 +226,41 @@ label.btn { position: relative; }
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
 }
 .theme-chip:hover { border-color: var(--accent); }
-.theme-chip[aria-pressed='true'] { border-color: var(--accent-strong); box-shadow: inset 0 0 0 1px var(--accent-strong); background: var(--accent-soft); }
+.theme-chip[aria-pressed='true'] { border-color: var(--accent-strong); box-shadow: inset 0 0 0 2px var(--accent-strong); background: var(--accent-soft); }
 .theme-name { min-width: 0; line-height: 1.15; overflow-wrap: anywhere; }
-.swatch {
-  flex: none;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 50%;
-  background: var(--t);
-  border: 3px dotted var(--c);
-}
-/* Tema bermotif punya warna aksen kedua: tampil sebagai cincin tipis di luar swatch. */
-.swatch-accent { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--a); }
-.theme-custom input[type='color'] { width: 1.5rem; height: 1.5rem; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
+/* Miniatur: kartu 63 x 92 mm diperkecil; ukuran kotak dihitung dari skala yang sama. */
+.theme-thumb { position: relative; display: block; flex: none; width: calc(63mm * 0.29); height: calc(92mm * 0.29); overflow: hidden; border-radius: 0.25rem; box-shadow: 0 0 0 1px var(--line); }
+.theme-thumb .fc-card { position: absolute; left: 0; top: 0; transform: scale(0.29); transform-origin: 0 0; }
+.theme-thumb-fallback { background: var(--c); }
+.theme-custom { flex-direction: row; justify-content: center; }
+.theme-custom input[type='color'] { width: 2rem; height: 2rem; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
 .theme-custom:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* Ponsel: kartu contoh menempel di atas pilihan tema supaya hasil mengetuk tema langsung terlihat. */
+.area-style { display: block; }
+.area-style > * + * { margin-top: 0.75rem; }
+.mini-preview {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 5;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: #fff;
+  box-shadow: 0 0 0 2px var(--line-strong), 0 6px 18px rgba(16, 49, 45, 0.22);
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+@media (min-width: 64rem) {
+  .mini-preview { display: none !important; }
+}
+
 .checks { display: grid; gap: 0.25rem; margin-top: 0.5rem; }
-.check { display: flex; align-items: center; gap: 0.6rem; min-height: 2.5rem; cursor: pointer; }
+.check { display: flex; align-items: center; gap: 0.6rem; min-height: 2.75rem; cursor: pointer; }
 .check input { width: 1.15rem; height: 1.15rem; accent-color: var(--accent); }
 
 /* ---------- pesan ---------- */
@@ -226,7 +268,7 @@ label.btn { position: relative; }
 .msg-ok { background: var(--ok-bg); color: var(--rail); }
 .msg-error { background: var(--err-bg); color: #7d1a12; }
 .msg-warn { background: var(--warn-bg); color: var(--warn-ink); }
-.msg .btn-quiet { min-height: 2.25rem; padding-block: 0.15rem; text-decoration: underline; text-underline-offset: 0.2em; }
+.msg .btn-quiet { min-height: 2.75rem; padding-block: 0.15rem; text-decoration: underline; text-underline-offset: 0.2em; }
 .unmatched-list { margin: 0; padding-left: 1.25rem; color: var(--warn-ink); }
 
 /* ---------- pemetaan ---------- */
@@ -265,6 +307,7 @@ label.btn { position: relative; }
 .sheet-wrap { --s: 0.45; background: #dde8e5; border-radius: var(--radius); padding: 0.75rem; display: flex; justify-content: center; overflow: hidden; }
 .sheet-frame { width: calc(210mm * var(--s)); height: calc(297mm * var(--s)); flex: none; }
 .sheet {
+  position: relative;
   display: grid;
   width: 210mm;
   height: 297mm;
@@ -277,6 +320,8 @@ label.btn { position: relative; }
   #fff
   repeating-linear-gradient(135deg, transparent 0 14mm, rgba(46, 196, 176, 0.07) 14mm 15mm); }
 .sheet .fc-card { margin: 0; }
+/* Tanda potong di pratinjau, sama seperti yang tercetak di PDF. */
+.cut-mark { position: absolute; background: #5a5a5a; pointer-events: none; }
 
 .print-opts { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); align-items: end; }
 .print-opts .check { grid-column: 1 / -1; }

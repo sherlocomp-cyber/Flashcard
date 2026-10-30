@@ -1,6 +1,6 @@
 # Flashcard Arab
 
-Ubah tabel kosakata atau materi menjadi flashcard A4 siap cetak. Dibuat untuk kelas bahasa Arab: huruf Arab bersambung, harakat tepat, cetak dua sisi sejajar, hemat tinta. Tanpa akun dan tanpa internet setelah dibuka sekali. Semua diolah di perangkat Anda.
+Ubah tabel kosakata atau materi menjadi flashcard A4 siap cetak. Dibuat untuk kelas bahasa Arab: huruf Arab bersambung, harakat tepat, cetak dua sisi sejajar. Tanpa akun dan tanpa internet setelah dibuka sekali. Semua diolah di perangkat Anda.
 
 ## Pakai
 
@@ -16,6 +16,10 @@ Ubah tabel kosakata atau materi menjadi flashcard A4 siap cetak. Dibuat untuk ke
 5. **Cetak** atau **Simpan PDF**. Untuk dua sisi, cetak bolak-balik dengan balik di sisi panjang kertas.
 
 Di Android, kedua tombol membuka lembar bagikan: simpan PDF atau kirim ke aplikasi pencetak.
+
+Saat mencetak, pilih skala 100% ("Ukuran sebenarnya"), bukan "Sesuaikan ke halaman", supaya kartu persis sesuai ukuran di pratinjau. Tanda potong berjarak sekitar 5 sampai 9 mm dari tepi kertas; sebagian printer tidak mencetak area sangat tepi, jadi cetak satu lembar uji dulu.
+
+Kerja Anda disimpan otomatis sebagai "Draf otomatis" di perangkat ini (bagian Simpan dan buka). Membuka set kartu lain atau berkas impor akan bertanya dulu sebelum mengganti kartu yang sedang dikerjakan.
 
 ## Untuk pengembang
 
@@ -37,7 +41,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Hasilnya muncul di Releases. Tanpa rahasia kunci di bawah, APK tetap dibuat tetapi bertanda kunci uji (`...-debug.apk`).
+Hasilnya muncul di Releases. Tanpa rahasia kunci di bawah, APK tetap dibuat tetapi bertanda kunci uji (`...-debug.apk`). APK uji memakai kunci berbeda di tiap pembuatan, jadi tidak bisa memperbarui APK uji sebelumnya: pasang ulang (dan dek yang hanya tersimpan di perangkat ikut hilang bila aplikasi dicopot, jadi ekspor berkas dek dulu). Nomor versi APK mengikuti tag (`v1.2.3` menjadi versionCode 10203).
 
 ### Kunci penanda tangan (sekali saja)
 

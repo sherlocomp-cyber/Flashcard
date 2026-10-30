@@ -16,7 +16,7 @@ Guru bahasa Arab (pemilik proyek) yang mengajar di kelas dan memakai flashcard c
 Mengubah tabel kosakata atau materi (dirapikan AI lain dari buku, lalu ditempel sekali) menjadi flashcard siap cetak A4 secara massal, tanpa mendesain kartu satu per satu. Berhasil bila guru menempel tabel dan dalam beberapa menit memegang lembar A4 yang benar.
 
 ## Positioning
-Pembuat flashcard khusus pelajaran bahasa Arab: huruf Arab bersambung dan harakat benar, kanan-ke-kiri, cetak dua sisi sejajar, hemat tinta (tengah putih, hiasan di tepi), jalan tanpa akun dan tanpa internet setelah dibuka sekali.
+Pembuat flashcard khusus pelajaran bahasa Arab: huruf Arab bersambung dan harakat benar, kanan-ke-kiri, cetak dua sisi sejajar, tema yang menarik, jalan tanpa akun dan tanpa internet setelah dibuka sekali.
 
 ## Operating Context
 Alur: tempel tabel, pilih jenis kartu dan tema, opsional unggah gambar massal (dicocokkan lewat nama file), perbaiki kartu di pratinjau, pilih tata letak A4, cetak atau simpan PDF. Hasil dicetak di printer biasa lalu dipotong. Antarmuka berbahasa Indonesia.
@@ -28,13 +28,13 @@ Tiga jenis kartu (gambar, kosakata, materi); bahasa Indonesia, Arab, Inggris; de
 Anti-tujuan menurut pemilik (dianggap gagal walau semua fitur jalan): fitur kurang lengkap, tema kurang menarik, ribet saat membuat kartu. Setiap langkah dari tempel sampai cetak harus bisa selesai tanpa membaca petunjuk. Desain UI dan UX harus profesional dan menarik.
 
 ## Evidence on Hand
-Spek dan rencana di `docs/superpowers/`. Delapan tema dan penampil kartu sudah ada (`src/themes`, `src/render/cardView.ts`), terbukti di PDF nyata. Tidak ada testimoni, pengguna, atau data ukur; jangan dikarang.
+Spek dan rencana di `docs/superpowers/`. Tiga puluh lima tema dan penampil kartu sudah ada (`src/themes`, `src/render/cardView.ts`). Bukti visual PDF nyata (Arab bersambung, harakat, sisi belakang sejajar) belum dikonfirmasi; `scripts/verify-pdf.mjs` kini menolak halaman yang kosong, tetapi PNG-nya tetap perlu dilihat mata. Tidak ada testimoni, pengguna, atau data ukur; jangan dikarang.
 
 ## Product Principles
 1. Satu layar, satu tindakan jelas berikutnya: dari tempel sampai cetak tanpa petunjuk.
 2. Pratinjau selalu persis seperti hasil cetak.
 3. Kesalahan dijelaskan dengan bahasa guru, bukan bahasa teknis, dan ada jalan keluarnya.
-4. Hemat tinta dan hemat kertas adalah fitur, bukan pelengkap.
+4. Kartu boleh memakai warna penuh; tampilan menarik dan terbaca dari jauh lebih penting daripada irit tinta.
 
 ## Accessibility & Inclusion
 Huruf Arab harus terbaca jelas dari jauh di kelas; kontras cukup; target sentuh nyaman di ponsel; seluruh teks antarmuka berbahasa Indonesia.

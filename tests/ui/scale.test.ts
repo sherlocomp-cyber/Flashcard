@@ -28,4 +28,23 @@ describe('sheetScale', () => {
   it('ignores_an_unknown_height', () => {
     expect(sheetScale(400, 0)).toBeCloseTo(400 / A4_W, 5);
   });
+
+  it('rejects_negative_and_nan_widths', () => {
+    expect(sheetScale(-5, 800)).toBeNull();
+    expect(sheetScale(Number.NaN, 800)).toBeNull();
+  });
+
+  it('uses_the_tighter_of_width_and_height', () => {
+    expect(sheetScale(A4_W, A4_H / 2)).toBeCloseTo(0.5, 5);
+    expect(sheetScale(A4_W * 0.6, A4_H * 2)).toBeCloseTo(0.6, 5);
+  });
+
+  it('floors_at_0_35_for_both_width_and_height', () => {
+    expect(sheetScale(A4_W * 0.1, 0)).toBe(0.35);
+    expect(sheetScale(A4_W, A4_H * 0.1)).toBe(0.35);
+  });
+
+  it('never_exceeds_1_even_with_ample_room', () => {
+    expect(sheetScale(A4_W * 3, A4_H * 3)).toBe(1);
+  });
 });

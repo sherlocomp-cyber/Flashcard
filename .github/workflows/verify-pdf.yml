@@ -19,8 +19,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - run: npm install --no-audit --no-fund
+          node-version: 22
+      # Lockfile dipakai bila ada (build bisa diulang persis); tanpa lockfile jatuh ke npm install.
+      - run: if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
       - run: npm install --no-save --no-audit --no-fund playwright
       - run: npx playwright install --with-deps chromium
       - name: Jalankan server Vite
@@ -38,6 +39,22 @@ jobs:
           command -v pdftoppm > /dev/null || (sudo apt-get update && sudo apt-get install -y poppler-utils)
           pdftoppm -r 100 -png verify-out/sample.pdf verify-out/halaman
           ls -la verify-out
+      - name: Pastikan tidak ada halaman kosong
+        run: |
+          pdftoppm -r 40 -gray verify-out/sample.pdf verify-out/cek
+          python3 - <<'EOF'
+          import glob, sys
+          bad = []
+          for f in sorted(glob.glob('verify-out/cek-*.pgm')):
+              px = open(f, 'rb').read().split(b'\n', 3)[3]
+              dark = sum(1 for b in px if b < 200)
+              print(f, 'piksel gelap:', dark)
+              if dark < 600:
+                  bad.append(f)
+          if not glob.glob('verify-out/cek-*.pgm') or bad:
+              print('HALAMAN KOSONG ATAU HILANG:', bad)
+              sys.exit(1)
+          EOF
       - uses: actions/upload-artifact@v4
         if: always()
         with:

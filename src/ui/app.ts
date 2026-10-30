@@ -2,7 +2,7 @@ import { buildAiPrompt } from '../core/aiPrompt';
 import { buildCards } from '../core/cards';
 import { FIELDS, guessColumns } from '../core/columns';
 import { downscale, matchImages, type ImageFile } from '../core/images';
-import { backPages, gridFor, paginate } from '../core/layout';
+import { backPages, cutMarks, gridFor, paginate } from '../core/layout';
 import { parseTable } from '../core/parse';
 import type { Card, CardType, ColumnMap, Field, PerPage, Table } from '../core/types';
 import { renderCardSide } from '../render/cardView';
@@ -35,6 +35,8 @@ export interface AppDeps {
   printBlob(blob: Blob): Promise<void>;
   writeClipboard(text: string): Promise<void>;
   exportPdf(cards: Card[], opts: PdfOptions): Promise<Blob>;
+  /** Simpan otomatis pekerjaan yang sedang berjalan (opsional). */
+  saveDraft?(d: Deck): Promise<void>;
 }
 
 export interface AppHandle {
@@ -55,6 +57,27 @@ const TYPE_LABEL: Record<CardType, string> = {
   material: 'Materi dan penjelasan',
 };
 const PER_PAGE: PerPage[] = [2, 4, 6, 8, 9];
+const DRAFT_ID = 'draf-otomatis';
+const DRAFT_NAME = 'Draf otomatis';
+const DEFAULT_NAME = 'Set kartu baru';
+
+/** Kelompok tema menurut gaya kartu, supaya 35 tema tidak berupa deret datar. */
+const THEME_GROUPS: { layout: string; title: string }[] = [
+  { layout: 'classic', title: 'Klasik: bingkai dan hiasan sudut' },
+  { layout: 'game', title: 'Permainan: bingkai tebal berwarna' },
+  { layout: 'pop', title: 'Pop: latar warna penuh' },
+  { layout: 'minimal', title: 'Minimal: putih bersih' },
+  { layout: 'rimba', title: 'Rimba: sudut gambar membulat' },
+  { layout: 'pill', title: 'Pil: kata dalam kapsul' },
+];
+
+/** Kartu contoh untuk miniatur tema dan pratinjau kecil. */
+const SAMPLE_CARD: Card = {
+  id: 'contoh',
+  type: 'vocab',
+  front: { lines: [{ text: 'كِتَابٌ', lang: 'ar', role: 'main' }], iconKey: 'buku' },
+  back: { lines: [{ text: 'buku', lang: 'id', role: 'main' }] },
+};
 /** Bantalan kiri+kanan `.sheet-wrap` (0,75rem × 2) yang tidak tersedia untuk lembar. */
 const WRAP_PADDING_PX = 24;
 /** Ruang di layar lebar untuk kepala, alat, dan tombol cetak di sekitar lembar pratinjau. */
@@ -124,10 +147,31 @@ function defaultDeps(): AppDeps {
       const mod = await import('../render/pdf');
       return mod.exportPdf(cards, opts);
     },
+    saveDraft: (d) => saveDeck({ ...d, id: DRAFT_ID, name: DRAFT_NAME }),
   };
 }
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+/** Pesan kita sendiri sudah berbahasa guru; galat teknis dari peramban diganti kalimat yang bisa ditindaklanjuti. */
+const OWN_MESSAGE = /^(Berkas dek|Belum ada|Tidak ada|Kartu |Dek |Set kartu|Peramban|Gambar|Teks)/;
+const plain = (e: unknown, fallback: string): string => {
+  const m = message(e);
+  return OWN_MESSAGE.test(m) ? m : `${fallback} Coba sekali lagi; bila tetap gagal, muat ulang halaman.`;
+};
+function arrowNav(group: HTMLElement): void {
+  group.addEventListener('keydown', (ev) => {
+    const key = (ev as KeyboardEvent).key;
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(key)) return;
+    const btns = Array.from(group.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+    const i = btns.indexOf(document.activeElement as HTMLButtonElement);
+    if (i < 0) return;
+    ev.preventDefault();
+    const back = key === 'ArrowLeft' || key === 'ArrowUp';
+    const next = btns[(i + (back ? btns.length - 1 : 1)) % btns.length];
+    next.focus();
+    next.click();
+  });
+}
 const slug = (s: string): string =>
   s
     .toLowerCase()
@@ -159,13 +203,17 @@ interface State {
   pageIndex: number;
   previewSide: 'front' | 'back';
   busy: boolean;
+  /** Benar bila kartu sudah disunting tangan; mengganti jenis atau kolom akan menimpa suntingan itu. */
+  edited: boolean;
 }
 
 export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): AppHandle {
   const deps: AppDeps = { ...defaultDeps(), ...partial };
+  // Simpan otomatis hanya untuk penyimpanan bawaan; penyimpanan palsu (tes) tidak ikut terpanggil.
+  if (partial.store && !partial.saveDraft) deps.saveDraft = undefined;
   const s: State = {
     deckId: newId('d'),
-    name: 'Dek baru',
+    name: DEFAULT_NAME,
     tableText: '',
     table: null,
     map: {},
@@ -184,6 +232,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     pageIndex: 0,
     previewSide: 'front',
     busy: false,
+    edited: false,
   };
 
   // ---------- helpers ----------
@@ -194,7 +243,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
 
   const getDeck = (): Deck => ({
     id: s.deckId,
-    name: s.name.trim() || 'Dek baru',
+    name: s.name.trim() || DEFAULT_NAME,
     cards: s.cards,
     themeId: s.themeId,
     perPage: s.perPage,
@@ -205,15 +254,27 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
   });
 
   // ---------- pesan ----------
+  // Pesan tampil melayang di bawah layar (lihat CSS) supaya terlihat di dekat tombol yang baru ditekan.
   const messages = h('div', { id: 'messages', 'aria-live': 'polite' });
-  const clearMessages = (): void => messages.replaceChildren();
+  let messageTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearMessages = (): void => {
+    if (messageTimer !== undefined) clearTimeout(messageTimer);
+    messageTimer = undefined;
+    messages.replaceChildren();
+  };
+  const closeBtn = (): HTMLButtonElement =>
+    h('button', { type: 'button', class: 'btn btn-quiet btn-close', 'aria-label': 'Tutup pesan', onClick: () => clearMessages() }, '\u00d7');
+  const autoHide = (ms: number): void => {
+    messageTimer = setTimeout(() => clearMessages(), ms);
+  };
   const showError = (text: string): void => {
     clearMessages();
-    messages.append(h('p', { class: 'msg msg-error', role: 'alert' }, text));
+    messages.append(h('p', { class: 'msg msg-error', role: 'alert' }, h('span', {}, text), closeBtn()));
   };
   const showNotice = (text: string): void => {
     clearMessages();
-    messages.append(h('p', { class: 'msg msg-ok', role: 'status' }, text));
+    messages.append(h('p', { class: 'msg msg-ok', role: 'status' }, h('span', {}, text), closeBtn()));
+    autoHide(9000);
   };
 
   // ---------- bagian tempel ----------
@@ -222,6 +283,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     rows: 6,
     spellcheck: 'false',
     placeholder: 'Tempel tabel di sini: dari Excel, Google Sheets, atau hasil AI.\n\n| arab | arti | inggris |\n| كتاب | buku | book |',
+    'aria-label': 'Tempel tabel di sini',
     'aria-describedby': 'paste-hint',
     onInput: () => onPaste(),
   });
@@ -246,22 +308,36 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     typeButtons.set(t, b);
     typeGroup.append(b);
   });
+  arrowNav(typeGroup);
 
   const themeButtons = new Map<string, HTMLButtonElement>();
-  const themeGroup = h('div', { class: 'themes', role: 'group', 'aria-label': 'Tema kartu' });
-  THEMES.forEach((t) => {
-    const b = h(
-      'button',
-      { type: 'button', class: 'theme-chip', 'data-theme-id': t.id, 'aria-pressed': 'false', onClick: () => onTheme(t.id) },
-      h('span', {
-        class: t.accent !== t.color ? 'swatch swatch-accent' : 'swatch',
-        style: `--c:${t.color};--t:${t.tint};--a:${t.accent}`,
-        'aria-hidden': 'true',
-      }),
-      h('span', { class: 'theme-name' }, t.name),
-    );
-    themeButtons.set(t.id, b);
-    themeGroup.append(b);
+  const themeGroup = h('div', { class: 'theme-groups', role: 'group', 'aria-label': 'Tema kartu' });
+  /** Miniatur kartu nyata: pengguna melihat bentuk tema, bukan hanya titik warna. */
+  const themeThumb = (t: Theme): HTMLElement => {
+    const box = h('span', { class: 'theme-thumb', 'aria-hidden': 'true' });
+    try {
+      box.append(renderCardSide(SAMPLE_CARD, 'front', t, { harakat: true, widthMm: 63, heightMm: 92 }));
+    } catch {
+      box.classList.add('theme-thumb-fallback');
+      box.style.setProperty('--c', t.color);
+    }
+    return box;
+  };
+  THEME_GROUPS.forEach((g) => {
+    const list = THEMES.filter((t) => (t.layout ?? 'classic') === g.layout);
+    if (list.length === 0) return;
+    const grid = h('div', { class: 'themes' });
+    list.forEach((t) => {
+      const b = h(
+        'button',
+        { type: 'button', class: 'theme-chip', 'data-theme-id': t.id, 'aria-pressed': 'false', onClick: () => onTheme(t.id) },
+        themeThumb(t),
+        h('span', { class: 'theme-name' }, t.name),
+      );
+      themeButtons.set(t.id, b);
+      grid.append(b);
+    });
+    themeGroup.append(h('h3', { class: 'theme-group-title' }, g.title), grid);
   });
   const customColor = h('input', {
     id: 'custom-color',
@@ -270,7 +346,10 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     'aria-label': 'Warna sendiri',
     onInput: () => onTheme(`custom:${customColor.value}`),
   });
-  themeGroup.append(h('label', { class: 'theme-chip theme-custom' }, customColor, h('span', { class: 'theme-name' }, 'Warna sendiri')));
+  themeGroup.append(
+    h('h3', { class: 'theme-group-title' }, 'Warna pilihan sendiri'),
+    h('div', { class: 'themes' }, h('label', { class: 'theme-chip theme-custom' }, customColor, h('span', { class: 'theme-name' }, 'Warna sendiri'))),
+  );
 
   const flipBox = h('input', { id: 'flip', type: 'checkbox', onChange: () => onFlip() });
   const harakatBox = h('input', { id: 'harakat', type: 'checkbox', checked: true, onChange: () => onHarakat() });
@@ -288,15 +367,19 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     sideBtns.set(side, b);
     sideGroup.append(b);
   });
-  const sheet = h('div', { class: 'sheet' });
+  arrowNav(sideGroup);
+  const sheet = h('div', { class: 'sheet', role: 'group', 'aria-label': 'Pratinjau lembar A4' });
   const sheetFrame = h('div', { class: 'sheet-frame' }, sheet);
   const sheetWrap = h('div', { class: 'sheet-wrap' }, sheetFrame);
   const previewEmpty = h(
     'div',
     { id: 'preview-empty', class: 'preview-empty' },
     h('strong', {}, 'Lembar A4 muncul di sini'),
-    h('p', {}, 'Tempel tabel di kolom kiri, atau pakai tabel contoh untuk melihat hasilnya dalam sekejap.'),
+    h('p', {}, 'Tempel tabel di kotak "Tempel tabel", atau pakai tabel contoh untuk melihat hasilnya dalam sekejap.'),
+    h('button', { type: 'button', class: 'btn btn-primary', onClick: () => onExample() }, 'Coba dengan tabel contoh'),
   );
+  // Ponsel: kartu contoh tetap menempel di atas pilihan tema, jadi hasil mengetuk tema langsung terlihat.
+  const miniPreview = h('button', { type: 'button', class: 'mini-preview', hidden: true, 'aria-label': 'Lihat pratinjau lembar penuh', onClick: () => root.querySelector('.stage')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }) });
   const overflowNote = h('p', { id: 'overflow-note', class: 'msg msg-warn', role: 'status', hidden: true });
 
   // ---------- cetak ----------
@@ -308,11 +391,11 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
   const sidesSel = h(
     'select',
     { id: 'sides', onChange: () => onSides() },
-    h('option', { value: 'both', selected: true }, 'Depan dan belakang (bolak-balik)'),
+    h('option', { value: 'both', selected: true }, 'Depan dan belakang'),
     h('option', { value: 'front' }, 'Depan saja'),
     h('option', { value: 'back' }, 'Belakang saja'),
   );
-  const cutBox = h('input', { id: 'cut-marks', type: 'checkbox', checked: true, onChange: () => { s.cutMarks = cutBox.checked; } });
+  const cutBox = h('input', { id: 'cut-marks', type: 'checkbox', checked: true, onChange: () => { s.cutMarks = cutBox.checked; renderPreview(); } });
   const savePdfBtn = h('button', { id: 'save-pdf', type: 'button', class: 'btn btn-primary', onClick: () => void onSavePdf() }, icon('download'), 'Simpan PDF');
   const printBtn = h('button', { id: 'print', type: 'button', class: 'btn', onClick: () => void onPrint() }, icon('print'), 'Cetak');
   const progressEl = h('p', { id: 'progress', class: 'muted', 'aria-live': 'polite' });
@@ -333,9 +416,9 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
   const addBtn = h('button', { id: 'add-card', type: 'button', class: 'btn', onClick: () => onAdd() }, icon('plus'), 'Tambah kartu');
 
   // ---------- dek ----------
-  const nameInput = h('input', { id: 'deck-name', type: 'text', value: s.name, 'aria-label': 'Nama dek', onInput: () => { s.name = nameInput.value; } });
+  const nameInput = h('input', { id: 'deck-name', type: 'text', value: s.name, 'aria-label': 'Nama set kartu', onInput: () => { s.name = nameInput.value; } });
   const saveBtn = h('button', { id: 'save-deck', type: 'button', class: 'btn', onClick: () => void onSaveDeck() }, icon('save'), 'Simpan di perangkat');
-  const exportBtn = h('button', { id: 'export-deck', type: 'button', class: 'btn', onClick: () => void onExportDeck() }, icon('download'), 'Ekspor berkas dek');
+  const exportBtn = h('button', { id: 'export-deck', type: 'button', class: 'btn', onClick: () => void onExportDeck() }, icon('download'), 'Ekspor berkas');
   const importInput = h('input', { id: 'import-input', type: 'file', accept: '.json,application/json', class: 'file-input', onChange: () => void onImport() });
   const savedList = h('ul', { class: 'saved-list' });
 
@@ -363,7 +446,8 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
       h(
         'section',
         { class: 'panel area-style' },
-        h('h2', {}, 'Gaya kartu'),
+        h('h2', {}, 'Jenis dan tema kartu'),
+        miniPreview,
         h('div', { class: 'field' }, h('span', { class: 'label' }, 'Jenis kartu'), typeGroup),
         h('div', { class: 'field' }, h('span', { class: 'label' }, 'Tema'), themeGroup),
         h(
@@ -411,9 +495,9 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
       h('section', { class: 'panel area-cards' }, h('div', { class: 'panel-head' }, h('h2', {}, 'Daftar kartu'), addBtn), rowsEl),
       panel(
         'area-deck',
-        'Dek',
-        h('label', { class: 'field' }, h('span', { class: 'label' }, 'Nama dek'), nameInput),
-        h('div', { class: 'row-end row-start' }, saveBtn, exportBtn, h('label', { class: 'btn' }, icon('upload'), 'Impor berkas dek', importInput)),
+        'Simpan dan buka',
+        h('label', { class: 'field' }, h('span', { class: 'label' }, 'Nama set kartu'), nameInput),
+        h('div', { class: 'row-end row-start' }, saveBtn, exportBtn, h('label', { class: 'btn' }, icon('upload'), 'Impor berkas', importInput)),
         h('h3', {}, 'Tersimpan di perangkat ini'),
         savedList,
       ),
@@ -450,6 +534,10 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
         ...FIELDS.map((f) => h('option', { value: f, selected: f === current }, FIELD_LABEL[f])),
       );
       sel.addEventListener('change', () => {
+        if (s.edited && !confirmOverwrite('Mengganti isi kolom')) {
+          renderMap();
+          return;
+        }
         const next: ColumnMap = {};
         selects.forEach((x, i) => {
           const v = x.value as Field | '';
@@ -508,6 +596,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     sheet.style.gridAutoRows = `${g.cardH}mm`;
     sheet.style.padding = `${g.marginY}mm ${g.marginX}mm`;
     sheet.classList.toggle('sheet-empty', empty);
+    updateActions();
 
     let tooLong = 0;
     const page = pages[s.pageIndex];
@@ -522,10 +611,53 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
         sheet.append(el);
       }
     }
+    if (!empty && s.cutMarks) {
+      for (const m of cutMarks(s.perPage)) {
+        const w = Math.abs(m.x2 - m.x1) || 0.25;
+        const hh = Math.abs(m.y2 - m.y1) || 0.25;
+        sheet.append(h('div', { class: 'cut-mark', 'aria-hidden': 'true', style: `left:${Math.min(m.x1, m.x2)}mm;top:${Math.min(m.y1, m.y2)}mm;width:${w}mm;height:${hh}mm` }));
+      }
+    }
+    renderMini(t, g);
+    scheduleDraft();
     overflowNote.hidden = tooLong === 0;
     overflowNote.textContent =
       tooLong === 0 ? '' : `${tooLong} kartu di lembar ini terlalu panjang dan hurufnya sudah sekecil mungkin. Persingkat teksnya.`;
     fitSheet();
+  }
+
+  function renderMini(t: Theme, g: ReturnType<typeof gridFor>): void {
+    const card = s.cards[0];
+    miniPreview.hidden = !card;
+    miniPreview.replaceChildren();
+    if (!card) return;
+    const k = Math.min(0.4, 52 / g.cardH, 60 / g.cardW);
+    const el = renderCardSide(card, s.previewSide, t, { harakat: s.harakat, widthMm: g.cardW, heightMm: g.cardH });
+    el.style.transformOrigin = '0 0';
+    el.style.transform = `scale(${k})`;
+    el.style.position = 'absolute';
+    miniPreview.style.width = `${(g.cardW * k).toFixed(1)}mm`;
+    miniPreview.style.height = `${(g.cardH * k).toFixed(1)}mm`;
+    miniPreview.append(el);
+  }
+
+  let draftTimer: ReturnType<typeof setTimeout> | undefined;
+  function scheduleDraft(): void {
+    if (!deps.saveDraft || s.cards.length === 0) return;
+    if (draftTimer !== undefined) clearTimeout(draftTimer);
+    draftTimer = setTimeout(() => {
+      Promise.resolve(deps.saveDraft?.(getDeck())).catch(() => {
+        /* penyimpanan tidak tersedia: lewati */
+      });
+    }, 1500);
+  }
+
+  /** Tombol cetak dan simpan hanya aktif bila ada kartu; saat kosong, beri tahu apa yang harus dilakukan. */
+  function updateActions(): void {
+    const empty = s.cards.length === 0;
+    savePdfBtn.disabled = s.busy || empty;
+    printBtn.disabled = s.busy || empty;
+    if (!s.busy) progressEl.textContent = empty ? 'Tempel tabel dulu supaya kartu bisa dicetak.' : '';
   }
 
   function fitSheet(): void {
@@ -551,6 +683,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
       placeholder: front ? '' : 'Gambar',
       'aria-label': `Sisi depan kartu ${i + 1}`,
       dir: 'auto',
+      lang: front?.lang,
     });
     frontInput.addEventListener('input', () => editLine(card.id, 'front', frontInput.value));
     const backInput = h('textarea', {
@@ -559,6 +692,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
       disabled: !back,
       'aria-label': `Sisi belakang kartu ${i + 1}`,
       dir: 'auto',
+      lang: back?.lang,
     });
     backInput.value = back?.text ?? '';
     backInput.addEventListener('input', () => editLine(card.id, 'back', backInput.value));
@@ -594,7 +728,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     }
     list.sort((a, b) => b.updatedAt - a.updatedAt);
     if (list.length === 0) {
-      savedList.replaceChildren(h('li', { class: 'rows-empty' }, 'Belum ada dek tersimpan.'));
+      savedList.replaceChildren(h('li', { class: 'rows-empty' }, 'Belum ada set kartu tersimpan.'));
       return;
     }
     savedList.replaceChildren(
@@ -605,7 +739,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
           h('span', { class: 'saved-name' }, d.name),
           h('span', { class: 'muted' }, new Date(d.updatedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })),
           h('button', { type: 'button', class: 'btn btn-open', onClick: () => void onOpen(d.id) }, icon('folder'), 'Buka'),
-          h('button', { type: 'button', class: 'btn btn-icon btn-remove-saved', 'aria-label': `Hapus dek ${d.name}`, onClick: () => void onRemoveSaved(d.id, d.name) }, icon('trash')),
+          h('button', { type: 'button', class: 'btn btn-icon btn-remove-saved', 'aria-label': `Hapus set kartu ${d.name}`, onClick: () => void onRemoveSaved(d.id, d.name) }, icon('trash')),
         ),
       ),
     );
@@ -632,6 +766,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
       s.unmatched = [];
     }
     s.cards = cards;
+    s.edited = false;
   }
 
   function onPaste(): void {
@@ -665,7 +800,18 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     onPaste();
   }
 
+  /** Tanyakan dulu sebelum menimpa kartu yang sedang dikerjakan. Lingkungan tanpa dialog tidak memblokir. */
+  function confirmOverwrite(what: string): boolean {
+    if (s.cards.length === 0) return true;
+    if (typeof window.confirm !== 'function') return true;
+    return window.confirm(`${what} akan mengganti kartu yang sedang dikerjakan (${s.cards.length} kartu). Lanjutkan?`) !== false;
+  }
+
   function onType(t: CardType): void {
+    if (s.edited && t !== s.type && !confirmOverwrite('Mengganti jenis kartu')) {
+      renderControls();
+      return;
+    }
     s.type = t;
     s.typeTouched = true;
     rebuild();
@@ -714,6 +860,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
   }
 
   function editLine(id: string, side: 'front' | 'back', text: string): void {
+    s.edited = true;
     s.cards = s.cards.map((c) => {
       if (c.id !== id || c[side].lines.length === 0) return c;
       const [first, ...rest] = c[side].lines;
@@ -723,6 +870,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
   }
 
   function moveCard(id: string, delta: number): void {
+    s.edited = true;
     const i = s.cards.findIndex((c) => c.id === id);
     const j = i + delta;
     if (i < 0 || j < 0 || j >= s.cards.length) return;
@@ -737,6 +885,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     const index = s.cards.findIndex((c) => c.id === id);
     if (index < 0) return;
     const removed = s.cards[index];
+    s.edited = true;
     s.cards = s.cards.filter((c) => c.id !== id);
     renderRows();
     renderPreview();
@@ -755,6 +904,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
           const next = [...s.cards];
           next.splice(Math.min(index, next.length), 0, card);
           s.cards = next;
+          s.edited = true;
           clearMessages();
           renderRows();
           renderPreview();
@@ -763,6 +913,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
       'Urungkan',
     );
     messages.append(h('p', { class: 'msg msg-ok', role: 'status' }, 'Kartu dihapus.', undo));
+    autoHide(9000);
   }
 
   function onAdd(): void {
@@ -776,6 +927,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
       card = { id: newId('n'), type: 'vocab', front: { lines: [line('ar')], iconKey: '' }, back: { lines: [line('id')] } };
     }
     if (s.flip) card = { ...card, front: card.back, back: card.front };
+    s.edited = true;
     s.cards = [...s.cards, card];
     renderRows();
     renderPreview();
@@ -798,7 +950,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
       renderUnmatched();
       renderPreview();
     } catch (e) {
-      showError(message(e));
+      showError(plain(e, 'Gambar belum bisa dibaca.'));
     }
     imageInput.value = '';
   }
@@ -808,20 +960,45 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
       await deps.writeClipboard(buildAiPrompt());
       showNotice('Teks perintah tersalin. Tempel ke AI bersama isi bukunya.');
     } catch (e) {
-      showError(`Gagal menyalin: ${message(e)}`);
+      showError(plain(e, 'Peramban tidak mengizinkan menyalin otomatis. Tekan lama di kotak tempel lalu pilih Salin.'));
     }
   }
 
   function setBusy(busy: boolean): void {
     s.busy = busy;
-    savePdfBtn.disabled = busy;
-    printBtn.disabled = busy;
-    if (!busy) progressEl.textContent = '';
+    updateActions();
+  }
+
+  /** Hitung sisi kartu yang terlalu panjang di seluruh set, bukan hanya lembar yang sedang tampil. */
+  function countTooLong(): number {
+    const g = gridFor(s.perPage);
+    const t = theme();
+    const sides: ('front' | 'back')[] = s.sides === 'both' ? ['front', 'back'] : [s.sides];
+    let n = 0;
+    for (const c of s.cards) {
+      for (const side of sides) {
+        const el = renderCardSide(c, side, t, { harakat: s.harakat, widthMm: g.cardW, heightMm: g.cardH });
+        if (el.getAttribute('data-overflow') === 'true') n++;
+      }
+    }
+    return n;
   }
 
   async function makePdf(): Promise<Blob | null> {
     if (s.busy) return null;
     clearMessages();
+    if (s.cards.length === 0) {
+      showError('Belum ada kartu. Tempel tabel dulu.');
+      return null;
+    }
+    const tooLong = countTooLong();
+    if (
+      tooLong > 0 &&
+      typeof window.confirm === 'function' &&
+      window.confirm(`${tooLong} sisi kartu terlalu panjang: hurufnya sudah sekecil mungkin dan bisa terpotong di kertas. Tetap buat PDF?`) === false
+    ) {
+      return null;
+    }
     setBusy(true);
     try {
       return await deps.exportPdf(s.cards, {
@@ -835,7 +1012,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
         },
       });
     } catch (e) {
-      showError(message(e));
+      showError(plain(e, 'PDF belum bisa dibuat.'));
       return null;
     } finally {
       setBusy(false);
@@ -854,7 +1031,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
           : 'PDF siap disimpan.',
       );
     } catch (e) {
-      showError(message(e));
+      showError(plain(e, 'PDF belum bisa disimpan.'));
     }
   }
 
@@ -864,7 +1041,7 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     try {
       await deps.printBlob(blob);
     } catch (e) {
-      showError(message(e));
+      showError(plain(e, 'Dialog cetak belum bisa dibuka. Pilih "Simpan PDF", lalu cetak dari berkasnya.'));
     }
   }
 
@@ -872,9 +1049,9 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     try {
       await deps.store.saveDeck(getDeck());
       await refreshSaved();
-      showNotice('Dek tersimpan di perangkat ini.');
+      showNotice('Set kartu tersimpan di perangkat ini.');
     } catch (e) {
-      showError(`Gagal menyimpan: ${message(e)}`);
+      showError(plain(e, 'Set kartu belum bisa disimpan. Mungkin penyimpanan perangkat penuh atau peramban dalam mode pribadi.'));
     }
   }
 
@@ -882,13 +1059,15 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     try {
       await deps.saveFile(`${slug(s.name)}.json`, exportDeckJson(getDeck()), 'application/json');
     } catch (e) {
-      showError(message(e));
+      showError(plain(e, 'Berkas belum bisa dibuat.'));
     }
   }
 
   function applyDeck(d: Deck): void {
-    s.deckId = d.id;
-    s.name = d.name;
+    const fromDraft = d.id === DRAFT_ID;
+    s.deckId = fromDraft ? newId('d') : d.id;
+    s.name = fromDraft ? 'Set kartu dipulihkan' : d.name;
+    s.edited = false;
     s.cards = d.cards;
     s.themeId = d.themeId;
     s.perPage = d.perPage;
@@ -913,10 +1092,13 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
     if (!file) return;
     clearMessages();
     try {
-      applyDeck(importDeckJson(await deps.readText(file)));
-      showNotice('Dek berhasil dibuka dari berkas.');
+      const deck = importDeckJson(await deps.readText(file));
+      if (confirmOverwrite('Membuka berkas')) {
+        applyDeck(deck);
+        showNotice('Set kartu dibuka dari berkas.');
+      }
     } catch (e) {
-      showError(message(e));
+      showError(plain(e, 'Berkas tidak bisa dibuka.'));
     }
     importInput.value = '';
   }
@@ -924,27 +1106,30 @@ export function createApp(root: HTMLElement, partial: Partial<AppDeps> = {}): Ap
   async function onOpen(id: string): Promise<void> {
     try {
       const d = await deps.store.loadDeck(id);
-      if (!d) throw new Error('Dek tidak ditemukan.');
-      applyDeck(d);
+      if (!d) throw new Error('Set kartu tidak ditemukan.');
+      if (confirmOverwrite('Membuka set kartu tersimpan')) applyDeck(d);
     } catch (e) {
-      showError(message(e));
+      showError(plain(e, 'Set kartu belum bisa dibuka.'));
     }
   }
 
   async function onRemoveSaved(id: string, name: string): Promise<void> {
     // Hanya batal bila pengguna menjawab "Batal" secara eksplisit; lingkungan tanpa dialog tidak memblokir.
-    if (typeof window.confirm === 'function' && window.confirm(`Hapus dek "${name}" dari perangkat ini? Tindakan ini tidak bisa dibatalkan.`) === false) {
+    if (typeof window.confirm === 'function' && window.confirm(`Hapus set kartu "${name}" dari perangkat ini? Tindakan ini tidak bisa dibatalkan.`) === false) {
       return;
     }
     try {
       await deps.store.deleteDeck(id);
       await refreshSaved();
     } catch (e) {
-      showError(message(e));
+      showError(plain(e, 'Set kartu belum bisa dihapus.'));
     }
   }
 
   renderAll();
   void refreshSaved();
+  // Ukuran huruf kartu diukur dengan font cadangan bila font tertanam belum siap; ukur ulang setelah siap.
+  const fontSet = (document as Document & { fonts?: FontFaceSet }).fonts;
+  if (fontSet?.ready) void fontSet.ready.then(() => renderPreview()).catch(() => undefined);
   return { getDeck };
 }

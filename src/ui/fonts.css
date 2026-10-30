@@ -1,3 +1,9 @@
 /* Font Arab Amiri ditanam di aplikasi (tanpa internet setelah dibuka sekali). */
 @import '@fontsource/amiri/400.css';
 @import '@fontsource/amiri/700.css';
+/* Huruf Latin judul kartu ikut ditanam supaya pratinjau dan PDF sama di semua perangkat. */
+@import '@fontsource/nunito/latin-400.css';
+@import '@fontsource/nunito/latin-700.css';
+@import '@fontsource/nunito/latin-800.css';
+@import '@fontsource/nunito/latin-900.css';
+@import '@fontsource/caveat/latin-700.css';

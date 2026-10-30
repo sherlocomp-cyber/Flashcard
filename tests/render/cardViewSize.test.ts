@@ -29,6 +29,17 @@ describe('renderCardSide: batas ukuran huruf', () => {
     expect(px(el, '.fc-sub')).toBe('22px');
   });
 
+  it('arabic_main_font_grows_on_tall_cards_so_it_reads_from_afar', () => {
+    const tall = { ...noOverflow, widthMm: 95, heightMm: 138.5 };
+    const el = renderCardSide(card(['طيار'], 'ar'), 'front', theme, tall);
+    expect(parseInt(px(el, '.fc-main'), 10)).toBeGreaterThan(100);
+  });
+
+  it('sub_line_never_drops_below_14px_unless_the_card_overflows', () => {
+    const el = renderCardSide(card(['Pilot', 'Pilot'], 'id'), 'front', theme, { harakat: true, measureOverflow: () => true });
+    expect(px(el, '.fc-sub')).toBe('14px');
+  });
+
   it('cap_is_still_shrunk_when_the_text_overflows', () => {
     const el = renderCardSide(card(['Pilot'], 'id'), 'front', theme, { harakat: true, measureOverflow: () => true });
     expect(px(el, '.fc-main')).toBe('12px');
